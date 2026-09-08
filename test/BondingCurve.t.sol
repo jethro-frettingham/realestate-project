@@ -69,8 +69,8 @@ contract BondingCurveTest is Test {
         // spot price * total supply, expressed in pair-coin units, should
         // sit close to $5,000 / $4,200-per-SHED at t=0.
         uint256 spotPricePair = curve.virtualPairReserve() * 1e18 / curve.virtualTokenReserve();
-        uint256 impliedCapPair = spotPricePair * BondingCurve.TOTAL_SUPPLY() / 1e18;
-        uint256 expectedCapPair = 5_000 ether * 1e18 / 4_200 ether;
+        uint256 impliedCapPair = spotPricePair * curve.TOTAL_SUPPLY() / 1e18;
+        uint256 expectedCapPair = (uint256(5_000 ether) * 1e18) / uint256(4_200 ether);
         assertApproxEqRel(impliedCapPair, expectedCapPair, 0.01e18); // within 1%
     }
 
