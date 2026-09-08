@@ -132,17 +132,30 @@
   <section class="section">
     <div class="wrap">
       <h2>Fees</h2>
-      <p>Every fee is split the same way on the curve and in the pool after migration, always in ETH:</p>
+      <p>
+        Every fee is split the same way on the curve and in the pool after migration, always in
+        ETH. There's no holder-reward bucket — nothing accrues to a wallet just for holding a
+        token, and there's nothing to claim on that basis:
+      </p>
       <table class="fee-table">
         <thead>
           <tr><th>Recipient</th><th>Share</th><th>Paid in</th><th>How</th></tr>
         </thead>
         <tbody>
-          <tr><td>Creator</td><td>30%</td><td>ETH</td><td>Claimed from the account page, any time.</td></tr>
-          <tr><td>Holders of the token</td><td>40%</td><td>ETH</td><td>Weighted by balance — claimed with one call, not pushed automatically (see below).</td></tr>
-          <tr><td>Parcel</td><td>30%</td><td>ETH</td><td>Funds the exchange.</td></tr>
+          <tr><td>Creator</td><td>40%</td><td>ETH</td><td>Claimed from the launch's curve contract, any time.</td></tr>
+          <tr><td>$PARCEL buyback</td><td>30%</td><td>ETH</td><td>Swept to the buyback treasury — anyone can trigger the sweep.</td></tr>
+          <tr><td>Parcel (protocol)</td><td>30%</td><td>ETH</td><td>Funds the exchange.</td></tr>
         </tbody>
       </table>
+      <p>
+        The buyback share is meant to fund buying $PARCEL on the open market and burning it —
+        that's what the <code>attemptBuyback()</code> hook on <code>ParcelBuyback.sol</code> is
+        for. On testnet it doesn't actually burn anything yet, because there's no live
+        $PARCEL/ETH pool to swap through — see
+        <a href="#gaps" style="color:var(--brass-bright);">what this repo doesn't do yet</a>.
+        The ETH still arrives and accumulates at the treasury address either way; it's the swap
+        step that's missing, not the fee collection.
+      </p>
     </div>
   </section>
 
@@ -158,13 +171,13 @@
     </div>
   </section>
 
-  <section class="section" style="border-bottom:none;">
+  <section class="section" id="gaps" style="border-bottom:none;">
     <div class="wrap">
       <h2>What this repo doesn't do yet</h2>
       <p>The contracts can be deployed for real to Robinhood Chain Testnet (see <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>) and this site will pick that up automatically. Even deployed, some things are still simplified:</p>
       <ul style="color:var(--paper-dim); max-width:64ch;">
         <li>The contracts are unaudited reference code — testnet only. Nothing here should hold mainnet funds as-is.</li>
-        <li>Holder fees are claim-based, not pushed to every holder automatically — see the fees table above. Pushing a transfer to every holder on every trade doesn't scale gas-wise; a production front end should surface a "claim" button rather than imply it happens with no action.</li>
+        <li>$PARCEL's buyback doesn't actually burn anything yet. <code>ParcelBuyback.sol</code> collects the 30% fee share honestly and tracks it in <code>queuedForBuyback</code>, but <code>attemptBuyback()</code> can't swap ETH for $PARCEL and burn it because no $PARCEL/ETH pool exists on testnet — there's nothing to buy from. The ETH sits in the treasury, visibly unresolved, until a real pool exists.</li>
         <li>There's no real Uniswap v4 pool behind migration on testnet — <code>TestnetMigrator</code> just holds the raised ETH and reserved tokens so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it.</li>
         <li>Market images and descriptions aren't pinned to IPFS — the launch form encodes them into an inline data URI, which is fine for a demo and not for anything meant to last.</li>
         <li>There's no markets index — <code>index.html</code> shows the static class list, not live launches. Finding a specific market means reading <code>LaunchCreated</code> events or checking the explorer directly.</li>
@@ -197,6 +210,7 @@
       row("Chain ID", "46630 (testnet)") +
       row("ParcelFactory", d.factory.slice(0, 10) + "…" + d.factory.slice(-6), d.explorer + "/address/" + d.factory) +
       row("TestnetMigrator", d.migrator.slice(0, 10) + "…" + d.migrator.slice(-6), d.explorer + "/address/" + d.migrator) +
+      row("$PARCEL / buyback treasury", d.parcelBuyback.slice(0, 10) + "…" + d.parcelBuyback.slice(-6), d.explorer + "/address/" + d.parcelBuyback) +
       row("Property classes", PROPERTY_CLASSES.length + " (display tags — no coin required)");
   });
 </script>

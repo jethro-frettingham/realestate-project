@@ -1,8 +1,8 @@
 # Deploying to Robinhood Chain Testnet
 
-Deploys the Parcel stack — a `TestnetMigrator` and a `ParcelFactory` —
+Deploys the Parcel stack — a `TestnetMigrator`, the $PARCEL buyback token/treasury, and a `ParcelFactory` —
 to Robinhood Chain Testnet, and wires the live site to it automatically.
-Launches are ETH-native, so that's the entire deployment: no per-class
+Launches are ETH-native, so that is most of the deployment: no per-class
 coin, no USDG mock, no oracle to seed.
 
 Robinhood Chain Testnet:
@@ -56,7 +56,7 @@ file and it only ever needs to hold testnet ETH.
    `.gitignore` — it should never be committed.
 3. Get testnet ETH for that address from
    [faucet.testnet.chain.robinhood.com](https://faucet.testnet.chain.robinhood.com).
-   This deployment is just two small contracts, so a small amount is enough.
+   This deployment is three small contracts, so a small amount is enough.
 
 ## 4. Deploy
 
@@ -64,7 +64,7 @@ file and it only ever needs to hold testnet ETH.
 forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 ```
 
-This deploys `TestnetMigrator` and `ParcelFactory`, then writes both
+This deploys `TestnetMigrator`, `ParcelBuyback`, and `ParcelFactory`, then writes all three
 addresses to `deployments/testnet.json`.
 
 If it fails partway through, it's almost always one of:
@@ -105,8 +105,8 @@ cast send <curve address> "buy(uint256)" 0 \
 
 ## Redeploying
 
-Re-running the script deploys a fresh `TestnetMigrator` and
-`ParcelFactory` and overwrites `deployments/testnet.json` — old launches
+Re-running the script deploys a fresh `TestnetMigrator`, `ParcelBuyback`,
+and `ParcelFactory` and overwrites `deployments/testnet.json` — old launches
 created against the previous factory won't show up anywhere new (there's
 no markets-listing indexer in this repo yet; `index.html`'s tiles are
 still static class previews, not live launches). Commit and push again

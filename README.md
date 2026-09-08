@@ -40,6 +40,7 @@ parcel-launch/
 │  ├─ BondingCurve.sol        — ETH-native virtual-liquidity curve, fee split, migration trigger
 │  ├─ ParcelFactory.sol       — deploys a launch (curve + token) in one tx, ETH-native
 │  ├─ TestnetMigrator.sol     — placeholder migration target (see DEPLOY.md)
+│  ├─ ParcelBuyback.sol       — $PARCEL token + fee treasury (burn is honestly stubbed — see docs.html)
 │  ├─ PriceOracle.sol         — optional, currently unused (see docs.html)
 │  └─ interfaces/IUniswapV4Migrator.sol
 ├─ script/Deploy.s.sol        — deploys the stack, writes deployments/testnet.json
@@ -65,8 +66,9 @@ Full version is on `docs.html`; short version:
 4. When the curve sells out, the ETH raised and the reserved 200,000,000
    tokens move into a Uniswap v4 pool at the curve's final price,
    permanently.
-5. Every fee splits 30% creator / 40% token holders / 30% protocol, paid
-   in ETH, on the curve and in the pool alike.
+5. Every fee splits 40% creator / 30% $PARCEL buyback / 30% protocol, paid
+   in ETH, on the curve and in the pool alike. There's no holder-reward
+   bucket — nothing to claim just for holding a token.
 
 ## Property classes
 
@@ -107,12 +109,12 @@ wallet.
 
 - **No deployment by default.** Nothing in `/contracts` is deployed,
   audited, or gas-profiled until you run `DEPLOY.md`'s steps yourself.
-- **Fee delivery to holders is pull-based, not push.** `docs.html`
-  is explicit about this: the contract uses a claim-based
-  reward-per-share accumulator (the same pattern staking contracts use)
-  because pushing a transfer to every holder on every trade doesn't
-  scale gas-wise. A production front end should surface a "claim"
-  button, not imply it happens automatically.
+- **$PARCEL's buyback doesn't burn anything yet.** `ParcelBuyback.sol`
+  collects its 30% fee share honestly (anyone can call
+  `sweepBuybackFees()` on a curve to send it there) and tracks it in
+  `queuedForBuyback`, but `attemptBuyback()` can't swap ETH for $PARCEL
+  and burn it because no $PARCEL/ETH pool exists on testnet yet — the
+  ETH just accumulates at the treasury until one does.
 - **Uniswap v4 migration is stubbed.** `IUniswapV4Migrator` defines the
   interface `BondingCurve` calls at sellout; `TestnetMigrator` just
   holds the ETH and reserved tokens rather than seeding a real pool —
