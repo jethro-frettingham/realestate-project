@@ -10,19 +10,21 @@ import "./BondingCurve.sol";
 ///         forwards the creator's first buy — in ETH, in the same
 ///         transaction. No token needs to exist before this call, and none
 ///         needs to be minted or approved by the creator or by any later
-///         buyer: connect a wallet, send ETH, get tokens.
+///         buyer: connect a wallet, send ETH, get tokens. Optionally
+///         picking a property class (`pairCoin_`) doesn't change any of
+///         that — it only changes what migration seeds (see BondingCurve).
 /// @dev Reference implementation for the Parcel demo. Unaudited.
 contract ParcelFactory {
     struct Launch {
         address curve;
         address token;
-        string propertyClass; // display tag, e.g. "SHED" — not an address
+        address pairCoin;     // address(0) if no class was picked
+        string propertyClass; // display tag mirrored from the curve, "" if none
         address creator;
         string metadataURI; // content-addressed: name, image, links, description
         uint64 createdAt;
     }
 
-    address public immutable buybackTreasury;
     address public immutable protocolTreasury;
     address public immutable migrator;
 
@@ -34,20 +36,21 @@ contract ParcelFactory {
         address indexed creator,
         address curve,
         address token,
+        address pairCoin,
         string propertyClass,
         uint16 feeBps,
         string metadataURI
     );
 
-    constructor(address buybackTreasury_, address protocolTreasury_, address migrator_) {
-        buybackTreasury = buybackTreasury_;
+    constructor(address protocolTreasury_, address migrator_) {
         protocolTreasury = protocolTreasury_;
         migrator = migrator_;
     }
 
     /// @param name_          Market name shown in the UI
     /// @param symbol_        Market ticker shown in the UI
-    /// @param propertyClass_ Display tag for what this is tethered to, e.g. "SHED"
+    /// @param pairCoin_      A PropertyClassCoin address to pick a class, or
+    ///                       address(0) for no class (single-pool migration)
     /// @param feeBps         100–300 (1%–3%), chosen by the creator
     /// @param metadataURI    Content-addressed URI for image/description/links
     /// @param minTokensOut   Slippage floor for the first buy
@@ -56,7 +59,7 @@ contract ParcelFactory {
     function createLaunch(
         string calldata name_,
         string calldata symbol_,
-        string calldata propertyClass_,
+        address pairCoin_,
         uint16 feeBps,
         string calldata metadataURI,
         uint256 minTokensOut
@@ -66,10 +69,9 @@ contract ParcelFactory {
         BondingCurve curve = new BondingCurve(
             name_,
             symbol_,
-            propertyClass_,
+            pairCoin_,
             msg.sender,
             feeBps,
-            buybackTreasury,
             protocolTreasury,
             migrator
         );
@@ -81,10 +83,13 @@ contract ParcelFactory {
         IERC20 tok = IERC20(address(curve.token()));
         tok.transfer(msg.sender, tok.balanceOf(address(this)));
 
+        string memory propertyClass_ = curve.propertyClass();
+
         launchId = launches.length;
         launches.push(Launch({
             curve: address(curve),
             token: address(curve.token()),
+            pairCoin: pairCoin_,
             propertyClass: propertyClass_,
             creator: msg.sender,
             metadataURI: metadataURI,
@@ -92,7 +97,7 @@ contract ParcelFactory {
         }));
         launchesByCreator[msg.sender].push(launchId);
 
-        emit LaunchCreated(launchId, msg.sender, address(curve), address(curve.token()), propertyClass_, feeBps, metadataURI);
+        emit LaunchCreated(launchId, msg.sender, address(curve), address(curve.token()), pairCoin_, propertyClass_, feeBps, metadataURI);
         return (launchId, address(curve));
     }
 

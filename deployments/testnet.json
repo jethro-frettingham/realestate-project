@@ -7,7 +7,9 @@
   "deployer": null,
   "factory": null,
   "migrator": null,
-  "parcelBuyback": null,
+  "usdg": null,
+  "ethUsd": 3500,
   "deployedAt": null,
+  "classCoins": {},
   "_note": "Placeholder. Run `forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast` to overwrite this with real addresses — see DEPLOY.md."
 }

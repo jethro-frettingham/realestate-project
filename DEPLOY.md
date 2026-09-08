@@ -1,9 +1,10 @@
 # Deploying to Robinhood Chain Testnet
 
-Deploys the Parcel stack — a `TestnetMigrator`, the $PARCEL buyback token/treasury, and a `ParcelFactory` —
-to Robinhood Chain Testnet, and wires the live site to it automatically.
-Launches are ETH-native, so that is most of the deployment: no per-class
-coin, no USDG mock, no oracle to seed.
+Deploys the Parcel stack to Robinhood Chain Testnet, and wires the live
+site to it automatically: a `TestnetMigrator`, one `PropertyClassCoin` per
+property class (20 total) plus USDG, and a `ParcelFactory`. Every coin's
+peg is static — fixed at deploy time from a flat assumed ETH/USD rate, no
+oracle, no keeper.
 
 Robinhood Chain Testnet:
 
@@ -56,7 +57,8 @@ file and it only ever needs to hold testnet ETH.
    `.gitignore` — it should never be committed.
 3. Get testnet ETH for that address from
    [faucet.testnet.chain.robinhood.com](https://faucet.testnet.chain.robinhood.com).
-   This deployment is three small contracts, so a small amount is enough.
+   This deployment is 23 small contracts (migrator, factory, 20 class
+   coins, USDG) — still cheap, but get a bit more than a trivial amount.
 
 ## 4. Deploy
 
@@ -64,8 +66,9 @@ file and it only ever needs to hold testnet ETH.
 forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 ```
 
-This deploys `TestnetMigrator`, `ParcelBuyback`, and `ParcelFactory`, then writes all three
-addresses to `deployments/testnet.json`.
+This deploys `TestnetMigrator`, all 20 property-class coins, USDG, and
+`ParcelFactory`, then writes every address to `deployments/testnet.json`
+(class coins under a `classCoins` map, keyed by ticker).
 
 If it fails partway through, it's almost always one of:
 - **Insufficient funds** — get more from the faucet.
@@ -89,9 +92,14 @@ Robinhood Chain Testnet to the user's wallet if it isn't already there.
 ## 6. Test a launch
 
 Once deployed, launching needs nothing but testnet ETH — no minting, no
-approvals. On `launch.html`: connect a wallet holding testnet ETH, fill
-in a name and ticker, pick a property class, enter a first-buy amount in
-ETH, and submit. One transaction, one wallet confirmation.
+approvals, whether or not you pick a class. On `launch.html`: connect a
+wallet holding testnet ETH, fill in a name and ticker, optionally pick a
+property class, enter a first-buy amount in ETH, and submit. One
+transaction, one wallet confirmation.
+
+To buy/sell a property-class coin directly (not through a launch), use
+`classes.html` — same pattern, pick a coin, buy with ETH or sell back to
+ETH at its fixed rate.
 
 To interact from the command line instead (e.g. to script a test buy on
 an existing launch):
@@ -105,9 +113,9 @@ cast send <curve address> "buy(uint256)" 0 \
 
 ## Redeploying
 
-Re-running the script deploys a fresh `TestnetMigrator`, `ParcelBuyback`,
-and `ParcelFactory` and overwrites `deployments/testnet.json` — old launches
-created against the previous factory won't show up anywhere new (there's
-no markets-listing indexer in this repo yet; `index.html`'s tiles are
-still static class previews, not live launches). Commit and push again
+Re-running the script deploys a fresh set of everything (migrator, class
+coins, USDG, factory) and overwrites `deployments/testnet.json` — old
+launches created against the previous factory and previous class coins
+stop showing up anywhere new, since `index.html`'s markets list reads
+live from the *current* factory's on-chain array. Commit and push again
 after any redeploy.

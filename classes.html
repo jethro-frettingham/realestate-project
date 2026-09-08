@@ -35,37 +35,209 @@
 </header>
 
 <main>
-  <section class="section" style="padding-top:56px;">
+  <section class="section" style="padding-top:56px; border-bottom:none;">
     <div class="wrap">
-      <span class="eyebrow-tag">20 classes</span>
-      <h1 style="margin-top:16px;">Pick what your launch is tethered to.</h1>
+      <span class="eyebrow-tag">20 classes + USDG</span>
+      <h1 style="margin-top:16px;">Buy and sell property-class coins.</h1>
       <p class="lede">
-        Each class is a label you tether a launch to at creation — a storage shed, a couch, a villa.
-        Trading itself is always in ETH; the class doesn't gate who can buy, sell, or launch. See
-        <a href="docs.html" style="color:var(--brass-bright);">how it works</a> for the full mechanics.
+        Each of these is a real, fully-collateralized coin — pick one, then buy it with ETH or
+        sell it back, always at its fixed rate. The same coins are what a launch pairs against on
+        the <a href="launch.html" style="color:var(--brass-bright);">launch page</a>, but you
+        don't need to launch anything to hold or trade one directly. See
+        <a href="docs.html" style="color:var(--brass-bright);">how it works</a> for how the peg
+        stays solvent.
       </p>
-    </div>
-  </section>
 
-  <section class="section" style="border-bottom:none;">
-    <div class="wrap">
-      <div class="tile-grid" id="all-classes"></div>
+      <div class="launch-grid" style="margin-top:36px;">
+        <div>
+          <div class="tile-grid" id="all-classes"></div>
+        </div>
+
+        <aside class="panel">
+          <h3>Trade</h3>
+          <div class="sub" id="panel-sub">Pick a coin to see its live rate.</div>
+
+          <div class="spec" style="margin-bottom:18px;">
+            <div class="spec-row"><span class="k">Coin</span><span class="v brass" id="tr-ticker">—</span></div>
+            <div class="spec-row"><span class="k">Fixed rate</span><span class="v" id="tr-rate">—</span></div>
+            <div class="spec-row"><span class="k">Your balance</span><span class="v" id="tr-balance">—</span></div>
+          </div>
+
+          <div class="fee-picker" style="margin-bottom:18px;">
+            <button type="button" class="fee-opt" id="tr-buy-tab" aria-pressed="true">Buy</button>
+            <button type="button" class="fee-opt" id="tr-sell-tab" aria-pressed="false">Sell</button>
+          </div>
+
+          <div class="field">
+            <label id="tr-amount-label" for="tr-amount">Pay with ETH</label>
+            <input type="text" id="tr-amount" placeholder="0.00" inputmode="decimal">
+            <p class="hint" id="tr-preview">—</p>
+          </div>
+
+          <div class="disclosure" id="tr-disclosure">Checking for a live deployment…</div>
+          <div id="tr-status" style="display:none; margin-top:12px; font-size:12.5px; font-family:var(--font-mono);"></div>
+
+          <button type="button" class="btn-connect" id="tr-action" style="width:100%; margin-top:16px;">Connect wallet to trade</button>
+        </aside>
+      </div>
     </div>
   </section>
 </main>
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — a demo launchpad. Unaudited contracts, no live deployment yet.</span>
+    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts — see <a href="DEPLOY.md">DEPLOY.md</a>.</span>
     <span><a href="docs.html">How it works</a> · <a href="launch.html">Launch</a></span>
   </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
 <script>
+  const USDG_TILE = { ticker: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1, at the same static ETH/USD assumption used for the classes", tier: "estate", glyph: { roof: "flat", w: 30, h: 30, windows: 1 } };
+  const ALL_TRADEABLE = [USDG_TILE, ...PROPERTY_CLASSES];
+
   document.getElementById("all-classes").innerHTML =
-    PROPERTY_CLASSES.map(c => renderClassTile(c)).join("");
+    ALL_TRADEABLE.map(c => renderClassTile(c)).join("");
+
+  let deployment = null;
+  let selected = null; // one of ALL_TRADEABLE
+  let mode = "buy"; // "buy" | "sell"
+  let walletConnected = false;
+  let coinAddress = null;
+  let coinDecimalsRate = null; // weiPerUnit, bigint
+
+  const actionBtn = document.getElementById("tr-action");
+  const statusEl = document.getElementById("tr-status");
+  const amountEl = document.getElementById("tr-amount");
+
+  function setStatus(msg, isError) {
+    statusEl.style.display = msg ? "block" : "none";
+    statusEl.textContent = msg || "";
+    statusEl.style.color = isError ? "var(--flag)" : "var(--brass-bright)";
+  }
+
+  function addressFor(ticker) {
+    if (!deployment) return null;
+    if (ticker === "USDG") return deployment.usdg;
+    return deployment.classCoins ? deployment.classCoins[ticker] : null;
+  }
+
+  async function refreshDisclosure() {
+    deployment = await Parcel.loadDeployment();
+    const el = document.getElementById("tr-disclosure");
+    if (deployment) {
+      el.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong>
+        Buying mints the coin by sending ETH; selling redeems it back to ETH. Both happen at the
+        coin's fixed rate — there's no slippage on the rate itself, only on gas and the amount you type.`;
+    } else {
+      el.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet — see
+        <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>. Rates shown are illustrative only.`;
+    }
+  }
+
+  async function selectCoin(entry) {
+    selected = entry;
+    document.getElementById("panel-sub").textContent = entry.label;
+    document.getElementById("tr-ticker").textContent = entry.ticker;
+    document.getElementById("tr-rate").textContent = "Loading…";
+    document.getElementById("tr-balance").textContent = "—";
+    coinAddress = addressFor(entry.ticker);
+    updatePreview();
+
+    if (!coinAddress) {
+      document.getElementById("tr-rate").textContent = "Not deployed yet";
+      return;
+    }
+    try {
+      const account = walletConnected ? await (new ethers.BrowserProvider(window.ethereum)).getSigner().then(s => s.getAddress()) : null;
+      const info = await Parcel.readPropertyCoin(coinAddress, account);
+      if (!info) return;
+      coinDecimalsRate = info.weiPerUnit;
+      document.getElementById("tr-rate").textContent = "1 " + entry.ticker + " = " + ethers.formatEther(info.weiPerUnit) + " ETH";
+      document.getElementById("tr-balance").textContent = ethers.formatEther(info.balance) + " " + entry.ticker;
+      updatePreview();
+    } catch (err) {
+      console.error(err);
+      document.getElementById("tr-rate").textContent = "Couldn't read rate";
+    }
+  }
+
+  document.getElementById("all-classes").addEventListener("click", (e) => {
+    const tile = e.target.closest(".tile");
+    if (!tile) return;
+    document.querySelectorAll("#all-classes .tile").forEach(t => t.style.borderColor = "");
+    tile.style.borderColor = "var(--brass)";
+    const entry = ALL_TRADEABLE.find(c => c.ticker === tile.dataset.ticker);
+    if (entry) selectCoin(entry);
+  });
+
+  function setMode(newMode) {
+    mode = newMode;
+    document.getElementById("tr-buy-tab").setAttribute("aria-pressed", mode === "buy");
+    document.getElementById("tr-sell-tab").setAttribute("aria-pressed", mode === "sell");
+    document.getElementById("tr-amount-label").textContent = mode === "buy"
+      ? "Pay with ETH"
+      : "Sell " + (selected ? selected.ticker : "coin");
+    updatePreview();
+  }
+  document.getElementById("tr-buy-tab").addEventListener("click", () => setMode("buy"));
+  document.getElementById("tr-sell-tab").addEventListener("click", () => setMode("sell"));
+
+  function updatePreview() {
+    const amt = parseFloat(amountEl.value);
+    const previewEl = document.getElementById("tr-preview");
+    if (!selected || !amt || amt <= 0 || !coinDecimalsRate) { previewEl.textContent = "—"; return; }
+    if (mode === "buy") {
+      const coinOut = amt / parseFloat(ethers.formatEther(coinDecimalsRate));
+      previewEl.textContent = "≈ " + coinOut.toLocaleString(undefined, { maximumFractionDigits: 6 }) + " " + selected.ticker;
+    } else {
+      const ethOut = amt * parseFloat(ethers.formatEther(coinDecimalsRate));
+      previewEl.textContent = "≈ " + ethOut.toLocaleString(undefined, { maximumFractionDigits: 6 }) + " ETH";
+    }
+  }
+  amountEl.addEventListener("input", updatePreview);
+
+  actionBtn.addEventListener("click", async () => {
+    if (!walletConnected) {
+      await Parcel.connectWallet();
+      return;
+    }
+    if (!selected) { setStatus("Pick a coin first.", true); return; }
+    if (!coinAddress) { setStatus("This coin isn't deployed yet.", true); return; }
+    const amt = amountEl.value.trim();
+    if (!amt || parseFloat(amt) <= 0) { setStatus("Enter an amount.", true); return; }
+
+    actionBtn.disabled = true;
+    try {
+      setStatus("Confirm in your wallet…");
+      let result;
+      if (mode === "buy") {
+        result = await Parcel.mintPropertyCoin(coinAddress, ethers.parseEther(amt));
+      } else {
+        // Coin amounts are 18-decimal ERC20 units, same as ETH's parseEther.
+        result = await Parcel.redeemPropertyCoin(coinAddress, ethers.parseEther(amt));
+      }
+      setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + deployment.explorer + "/tx/" + result.txHash);
+      selectCoin(selected); // refresh balance/rate display
+      amountEl.value = "";
+      updatePreview();
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || String(err), true);
+    } finally {
+      actionBtn.disabled = false;
+    }
+  });
+
+  document.addEventListener("parcel:connected", () => {
+    walletConnected = true;
+    actionBtn.textContent = mode === "buy" ? "Buy" : "Sell";
+    if (selected) selectCoin(selected);
+  });
+
+  refreshDisclosure();
 </script>
 </body>
 </html>

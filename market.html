@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market · Parcel</title>
+<meta name="description" content="Trade a launch on Parcel — live curve state, buy/sell, recent trades.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="4" y="4" width="22" height="22"/>
+        <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
+        <circle cx="19" cy="19" r="3.4"/>
+      </svg>
+      <span>Parcel<span class="sub">on Robinhood Chain Testnet</span></span>
+    </a>
+    <nav class="primary">
+      <a href="index.html" aria-current="page">Markets</a>
+      <a href="classes.html">Property classes</a>
+      <a href="launch.html">Launch</a>
+      <a href="docs.html">How it works</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span class="chain-tag">Robinhood Chain Testnet</span>
+      <button class="btn-connect" data-connect>Connect wallet</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="section" style="padding-top:48px; border-bottom:none;">
+    <div class="wrap" id="no-curve-notice" style="display:none;">
+      <p class="lede">No market specified. Go back to <a href="index.html" style="color:var(--brass-bright);">Markets</a> and pick one, or check <code>?curve=0x...</code> is in the URL.</p>
+    </div>
+
+    <div class="wrap" id="market-wrap" style="display:none;">
+      <span class="eyebrow-tag" id="mk-tag">Loading…</span>
+      <h1 style="margin-top:16px;" id="mk-name">—</h1>
+      <p class="lede" id="mk-sub">—</p>
+
+      <div class="launch-grid" style="margin-top:36px;">
+        <div>
+          <div class="spec" style="margin-bottom:24px;">
+            <div class="spec-row"><span class="k">Paired with</span><span class="v brass" id="mk-pair">—</span></div>
+            <div class="spec-row"><span class="k">Migration progress</span><span class="v" id="mk-progress">—</span></div>
+            <div class="spec-row"><span class="k">Trading fee</span><span class="v" id="mk-fee">—</span></div>
+            <div class="spec-row"><span class="k">Creator</span><span class="v" id="mk-creator">—</span></div>
+            <div class="spec-row"><span class="k">Curve contract</span><span class="v" id="mk-curve-link">—</span></div>
+          </div>
+
+          <h3>Recent trades</h3>
+          <p class="hint" style="margin-bottom:12px;">A trade list straight from this curve's <code>Trade</code> events — not a price chart. See <a href="docs.html#gaps" style="color:var(--brass-bright);">what this repo doesn't do yet</a>.</p>
+          <div id="mk-trades" class="spec"></div>
+        </div>
+
+        <aside class="panel">
+          <h3>Trade</h3>
+          <div class="sub" id="mk-migrated-note" style="display:none;">This market has migrated — the curve no longer trades. See its pool(s) on the explorer.</div>
+
+          <div class="fee-picker" style="margin: 14px 0 18px;" id="mk-mode-tabs">
+            <button type="button" class="fee-opt" id="mk-buy-tab" aria-pressed="true">Buy</button>
+            <button type="button" class="fee-opt" id="mk-sell-tab" aria-pressed="false">Sell</button>
+          </div>
+
+          <div class="field">
+            <label id="mk-amount-label" for="mk-amount">Pay with ETH</label>
+            <input type="text" id="mk-amount" placeholder="0.00" inputmode="decimal">
+            <p class="hint" id="mk-preview">—</p>
+          </div>
+
+          <div class="disclosure" id="mk-disclosure">Checking for a live deployment…</div>
+          <div id="mk-status" style="display:none; margin-top:12px; font-size:12.5px; font-family:var(--font-mono);"></div>
+
+          <button type="button" class="btn-connect" id="mk-action" style="width:100%; margin-top:16px;">Connect wallet to trade</button>
+        </aside>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts — see <a href="DEPLOY.md">DEPLOY.md</a>.</span>
+    <span><a href="docs.html">How it works</a> · <a href="index.html">Markets</a></span>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="assets/classes.js"></script>
+<script src="assets/app.js"></script>
+<script>
+  const curveAddress = new URLSearchParams(location.search).get("curve");
+  let deployment = null;
+  let state = null; // result of fetchCurveState
+  let mode = "buy";
+  let walletConnected = false;
+
+  const actionBtn = document.getElementById("mk-action");
+  const statusEl = document.getElementById("mk-status");
+  const amountEl = document.getElementById("mk-amount");
+
+  function setStatus(msg, isError) {
+    statusEl.style.display = msg ? "block" : "none";
+    statusEl.textContent = msg || "";
+    statusEl.style.color = isError ? "var(--flag)" : "var(--brass-bright)";
+  }
+
+  function fmtEth(wei) {
+    return parseFloat(ethers.formatEther(wei)).toLocaleString(undefined, { maximumFractionDigits: 6 });
+  }
+  function fmtTokens(units) {
+    return parseFloat(ethers.formatEther(units)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  async function load() {
+    if (!curveAddress) {
+      document.getElementById("no-curve-notice").style.display = "block";
+      return;
+    }
+    document.getElementById("market-wrap").style.display = "block";
+
+    deployment = await Parcel.loadDeployment();
+    const disclosureEl = document.getElementById("mk-disclosure");
+    if (!deployment) {
+      disclosureEl.innerHTML = `<strong>Preview mode.</strong> No live deployment found — see <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>.`;
+      return;
+    }
+    disclosureEl.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong> Buying and selling submit real transactions to this curve.`;
+
+    try {
+      state = await Parcel.fetchCurveState(curveAddress);
+    } catch (err) {
+      console.error(err);
+      setStatus("Couldn't load this market — check the curve address in the URL.", true);
+      return;
+    }
+    if (!state) return;
+
+    document.getElementById("mk-tag").textContent = state.symbol;
+    document.getElementById("mk-name").textContent = state.name;
+    document.getElementById("mk-sub").textContent = state.propertyClass
+      ? "Tethered to " + state.propertyClass + " — migrates into two pools."
+      : "No property class — migrates into a single ETH pool.";
+    document.getElementById("mk-pair").textContent = state.propertyClass ? state.propertyClass : "ETH only";
+    document.getElementById("mk-fee").textContent = (state.feeBps / 100) + "%";
+    document.getElementById("mk-creator").textContent = state.creator.slice(0, 8) + "…" + state.creator.slice(-6);
+
+    const pct = Number(state.tokensSold * 10000n / state.curveSupply) / 100;
+    document.getElementById("mk-progress").textContent = state.migrated
+      ? "Migrated — sold out"
+      : pct.toFixed(1) + "% (" + fmtTokens(state.tokensSold) + " / " + fmtTokens(state.curveSupply) + " tokens)";
+
+    const curveLink = document.getElementById("mk-curve-link");
+    curveLink.innerHTML = `<a href="${deployment.explorer}/address/${curveAddress}" target="_blank" rel="noopener" style="color:inherit;">${curveAddress.slice(0,10)}…${curveAddress.slice(-6)}</a>`;
+
+    if (state.migrated) {
+      document.getElementById("mk-migrated-note").style.display = "block";
+      document.getElementById("mk-mode-tabs").style.display = "none";
+      document.getElementById("mk-amount").disabled = true;
+      actionBtn.disabled = true;
+      actionBtn.textContent = "Migrated — trading closed here";
+    }
+
+    loadTrades();
+  }
+
+  async function loadTrades() {
+    const el = document.getElementById("mk-trades");
+    try {
+      const trades = await Parcel.fetchRecentTrades(curveAddress, 30);
+      if (trades.length === 0) {
+        el.innerHTML = `<div class="spec-row"><span class="k">No trades yet</span></div>`;
+        return;
+      }
+      el.innerHTML = trades.map((t) => {
+        const side = t.isBuy ? "Buy" : "Sell";
+        const ethAmt = t.isBuy ? t.ethIn : t.ethOut;
+        const tokenAmt = t.isBuy ? t.tokensOut : t.tokensIn;
+        return `<div class="spec-row">
+          <span class="k">${side} · ${t.trader.slice(0,6)}…${t.trader.slice(-4)}</span>
+          <span class="v"><a href="${deployment.explorer}/tx/${t.txHash}" target="_blank" rel="noopener" style="color:inherit;">${fmtEth(ethAmt)} ETH → ${fmtTokens(tokenAmt)}</a></span>
+        </div>`;
+      }).join("");
+    } catch (err) {
+      console.error(err);
+      el.innerHTML = `<div class="spec-row"><span class="k">Couldn't load trades</span></div>`;
+    }
+  }
+
+  function setMode(newMode) {
+    mode = newMode;
+    document.getElementById("mk-buy-tab").setAttribute("aria-pressed", mode === "buy");
+    document.getElementById("mk-sell-tab").setAttribute("aria-pressed", mode === "sell");
+    document.getElementById("mk-amount-label").textContent = mode === "buy" ? "Pay with ETH" : "Sell " + (state ? state.symbol : "tokens");
+    updatePreview();
+  }
+  document.getElementById("mk-buy-tab").addEventListener("click", () => setMode("buy"));
+  document.getElementById("mk-sell-tab").addEventListener("click", () => setMode("sell"));
+
+  function updatePreview() {
+    const amt = parseFloat(amountEl.value);
+    const previewEl = document.getElementById("mk-preview");
+    if (!state || !amt || amt <= 0) { previewEl.textContent = "—"; return; }
+    if (mode === "buy") {
+      const soldNumber = Number(ethers.formatEther(state.tokensSold));
+      const tokensOut = Parcel.quoteBuy(amt, soldNumber);
+      previewEl.textContent = "≈ " + Math.round(tokensOut).toLocaleString() + " " + state.symbol + " (before fee)";
+    } else {
+      previewEl.textContent = "Confirm in your wallet to see the exact ETH out — selling depends on live curve reserves.";
+    }
+  }
+  amountEl.addEventListener("input", updatePreview);
+
+  actionBtn.addEventListener("click", async () => {
+    if (!walletConnected) {
+      await Parcel.connectWallet();
+      return;
+    }
+    if (!state || state.migrated) return;
+    const amt = amountEl.value.trim();
+    if (!amt || parseFloat(amt) <= 0) { setStatus("Enter an amount.", true); return; }
+
+    actionBtn.disabled = true;
+    try {
+      setStatus("Confirm in your wallet…");
+      let result;
+      if (mode === "buy") {
+        result = await Parcel.buyOnCurve(curveAddress, ethers.parseEther(amt));
+      } else {
+        result = await Parcel.sellOnCurve(curveAddress, state.tokenAddr, ethers.parseEther(amt));
+      }
+      setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + deployment.explorer + "/tx/" + result.txHash);
+      amountEl.value = "";
+      state = await Parcel.fetchCurveState(curveAddress);
+      loadTrades();
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || String(err), true);
+    } finally {
+      actionBtn.disabled = false;
+    }
+  });
+
+  document.addEventListener("parcel:connected", () => {
+    walletConnected = true;
+    actionBtn.textContent = mode === "buy" ? "Buy" : "Sell";
+  });
+
+  load();
+</script>
+</body>
+</html>

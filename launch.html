@@ -94,7 +94,7 @@
               <button type="button" class="fee-opt" data-fee="2" aria-pressed="true">2%</button>
               <button type="button" class="fee-opt" data-fee="3">3%</button>
             </div>
-            <p class="hint">Charged on every trade, on the curve and in the pool after migration. You keep 40% of it; 30% buys back $PARCEL, 30% funds the exchange. No holder rewards — nothing to claim as a holder.</p>
+            <p class="hint">Charged on every trade, on the curve and in the pool(s) after migration. You keep 70% of it; 30% funds the exchange. No holder rewards — nothing to claim as a holder.</p>
           </div>
 
           <div class="field">
@@ -117,6 +117,7 @@
             <div class="spec-row"><span class="k">Supply</span><span class="v">1,000,000,000</span></div>
             <div class="spec-row"><span class="k">Opens at</span><span class="v">~2.8 ETH implied cap</span></div>
             <div class="spec-row"><span class="k">Migrates at</span><span class="v">~8.8 ETH raised</span></div>
+            <div class="spec-row"><span class="k">Migration pools</span><span class="v" id="ov-pools">1 (TOKEN/ETH)</span></div>
             <div class="spec-row"><span class="k">Trading fee</span><span class="v" id="ov-fee">2%</span></div>
             <div class="spec-row"><span class="k">First buy</span><span class="v" id="ov-buy">—</span></div>
             <div class="spec-row"><span class="k">You receive</span><span class="v" id="ov-receive">—</span></div>
@@ -147,11 +148,12 @@
 <script src="assets/app.js"></script>
 <script>
   const picker = document.getElementById("class-picker");
-  picker.innerHTML = PROPERTY_CLASSES.map((c, i) =>
-    `<button type="button" class="class-opt" data-ticker="${c.ticker}" aria-pressed="${i === 0}">${c.ticker}</button>`
-  ).join("");
+  picker.innerHTML = `<button type="button" class="class-opt" data-ticker="" aria-pressed="true">None (ETH only)</button>` +
+    PROPERTY_CLASSES.map((c) =>
+      `<button type="button" class="class-opt" data-ticker="${c.ticker}" aria-pressed="false">${c.ticker}</button>`
+    ).join("");
 
-  let selectedClass = PROPERTY_CLASSES[0];
+  let selectedClass = null; // null = no class picked (default); otherwise a PROPERTY_CLASSES entry
   let selectedFee = 2;
   let deployment = null; // filled in once loadDeployment() resolves
 
@@ -165,6 +167,11 @@
     statusEl.style.color = isError ? "var(--flag)" : "var(--brass-bright)";
   }
 
+  function pairCoinAddress() {
+    if (!selectedClass || !deployment) return null;
+    return deployment.classCoins ? deployment.classCoins[selectedClass.ticker] : null;
+  }
+
   async function refreshMode() {
     deployment = await Parcel.loadDeployment();
     const disclosure = document.getElementById("mode-disclosure");
@@ -173,7 +180,7 @@
       disclosure.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong>
         This submits a real <code>createLaunch</code> transaction to
         <a href="${deployment.explorer}/address/${deployment.factory}" target="_blank" rel="noopener" style="color:var(--brass-bright);">
-        the deployed ParcelFactory</a> — paid in ETH, nothing to approve or mint first. Get testnet ETH from
+        the deployed ParcelFactory</a> — paid in ETH, nothing to approve or mint first, whether or not you pick a class. Get testnet ETH from
         <a href="${deployment.faucet}" target="_blank" rel="noopener" style="color:var(--brass-bright);">the faucet</a> if you need it.
         Tokenizing a specific physical property may make the resulting coin a security in your
         jurisdiction — that's a legal question for a lawyer, not a setting in this repo.`;
@@ -186,9 +193,14 @@
   }
 
   function updateOverview() {
-    document.getElementById("ov-pair").textContent = selectedClass.ticker;
-    document.getElementById("panel-sub").textContent = selectedClass.label + " — " + selectedClass.unit;
+    document.getElementById("ov-pair").textContent = selectedClass ? selectedClass.ticker : "None";
+    document.getElementById("panel-sub").textContent = selectedClass
+      ? selectedClass.label + " — " + selectedClass.unit + ". Migrates into two pools: TOKEN/ETH and TOKEN/" + selectedClass.ticker + "."
+      : "No class picked — migrates into a single TOKEN/ETH pool.";
     document.getElementById("ov-fee").textContent = selectedFee + "%";
+    document.getElementById("ov-pools").textContent = selectedClass
+      ? "2 (TOKEN/ETH + TOKEN/" + selectedClass.ticker + ")"
+      : "1 (TOKEN/ETH)";
     recalcReceive();
   }
 
@@ -197,7 +209,7 @@
     if (!btn) return;
     picker.querySelectorAll(".class-opt").forEach(b => b.setAttribute("aria-pressed", "false"));
     btn.setAttribute("aria-pressed", "true");
-    selectedClass = PROPERTY_CLASSES.find(c => c.ticker === btn.dataset.ticker);
+    selectedClass = btn.dataset.ticker ? PROPERTY_CLASSES.find(c => c.ticker === btn.dataset.ticker) : null;
     updateOverview();
   });
 
@@ -272,13 +284,19 @@
     if (!name || !symbol) { setStatus("Name and ticker are required.", true); return; }
     if (!amountStr || parseFloat(amountStr) <= 0) { setStatus("Enter a first-buy amount.", true); return; }
 
+    let pairCoin = null;
+    if (selectedClass) {
+      pairCoin = pairCoinAddress();
+      if (!pairCoin) { setStatus(selectedClass.ticker + " has no deployed coin — try redeploying.", true); return; }
+    }
+
     actionBtn.disabled = true;
     try {
       setStatus("Confirm in your wallet…");
       const firstBuyIn = ethers.parseEther(amountStr);
       const result = await Parcel.submitLaunch({
         name, symbol,
-        propertyClass: selectedClass.ticker,
+        pairCoinAddress: pairCoin,
         feeBps: selectedFee * 100,
         metadataURI: buildMetadataURI(),
         firstBuyIn,
