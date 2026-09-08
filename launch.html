@@ -266,9 +266,11 @@
       x: document.getElementById("x").value || null,
       telegram: document.getElementById("telegram").value || null,
       description: document.getElementById("description").value || null,
-      note: "testnet demo metadata — not pinned to IPFS",
+      note: "testnet demo metadata -- not pinned to IPFS",
     };
-    return "data:application/json;base64," + btoa(JSON.stringify(meta));
+    // btoa only handles Latin1 — encode through UTF-8 first so names,
+    // descriptions, etc. with accents/emoji/em dashes don't break it.
+    return "data:application/json;base64," + btoa(unescape(encodeURIComponent(JSON.stringify(meta))));
   }
 
   actionBtn.addEventListener("click", async () => {
