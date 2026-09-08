@@ -22,7 +22,8 @@ contract BondingCurveTest is Test {
 
     address creator = address(0xC12EA70A);
     address trader = address(0x7EADE12);
-    address treasury = address(0x7EA5121);
+    address buybackTreasury = address(0xB0BACC);
+    address protocolTreasury = address(0x7EA5121);
 
     function setUp() public {
         migrator = new MockMigrator();
@@ -33,7 +34,8 @@ contract BondingCurveTest is Test {
             "SHED",
             creator,
             200, // 2% fee
-            treasury,
+            buybackTreasury,
+            protocolTreasury,
             address(migrator)
         );
 
@@ -51,14 +53,15 @@ contract BondingCurveTest is Test {
 
     function test_buyRequiresNoApprovalOrPriorToken() public {
         // The whole point: a fresh EOA with nothing but ETH can buy
-        // immediately — no approve(), no minting an intermediate coin.
+        // immediately — no approve(), no minting an intermediate coin, and
+        // no holder-reward bookkeeping to worry about either.
         vm.prank(trader);
         uint256 tokensOut = curve.buy{value: 1 ether}(0);
         assertGt(tokensOut, 0);
         assertEq(IERC20(address(curve.token())).balanceOf(trader), tokensOut);
     }
 
-    function test_buyIncreasesPriceAndPaysFee() public {
+    function test_buySplitsFeeThreeWaysWithNoHolderBucket() public {
         vm.startPrank(trader);
         uint256 out1 = curve.buy{value: 0.5 ether}(0);
         uint256 out2 = curve.buy{value: 0.5 ether}(0);
@@ -68,6 +71,13 @@ contract BondingCurveTest is Test {
         assertGt(out1, out2);
         assertGt(curve.protocolFeesOwed(), 0);
         assertGt(curve.creatorFeesOwed(), 0);
+        assertGt(curve.buybackFeesOwed(), 0);
+
+        // Confirm the three buckets are the whole fee — no fourth
+        // (holder-reward) bucket exists anymore.
+        uint256 grossFee = curve.creatorFeesOwed() + curve.buybackFeesOwed() + curve.protocolFeesOwed();
+        uint256 expectedFee = 1 ether * 200 / 10_000; // 2% of the 1 ETH total sent
+        assertApproxEqAbs(grossFee, expectedFee, 2); // rounding dust only
     }
 
     function test_sellReturnsEthWithNoApprovalNeededForEth() public {
@@ -115,6 +125,36 @@ contract BondingCurveTest is Test {
         curve.claimCreatorFees();
         assertEq(creator.balance, before + owed);
         assertEq(curve.creatorFeesOwed(), 0);
+    }
+
+    function test_anyoneCanSweepBuybackFeesButOnlyToTreasury() public {
+        vm.prank(trader);
+        curve.buy{value: 1 ether}(0);
+
+        uint256 owed = curve.buybackFeesOwed();
+        assertGt(owed, 0);
+
+        uint256 before = buybackTreasury.balance;
+        // A random address (not the creator, not the treasury) can trigger
+        // the sweep — but the funds only ever go to buybackTreasury.
+        vm.prank(address(0xBEEF));
+        curve.sweepBuybackFees();
+
+        assertEq(buybackTreasury.balance, before + owed);
+        assertEq(curve.buybackFeesOwed(), 0);
+    }
+
+    function test_protocolCanClaimFees() public {
+        vm.prank(trader);
+        curve.buy{value: 1 ether}(0);
+
+        uint256 owed = curve.protocolFeesOwed();
+        assertGt(owed, 0);
+
+        uint256 before = protocolTreasury.balance;
+        curve.claimProtocolFees();
+        assertEq(protocolTreasury.balance, before + owed);
+        assertEq(curve.protocolFeesOwed(), 0);
     }
 
     function test_sellingOutMigratesToMigrator() public {

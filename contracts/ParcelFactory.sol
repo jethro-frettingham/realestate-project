@@ -22,6 +22,7 @@ contract ParcelFactory {
         uint64 createdAt;
     }
 
+    address public immutable buybackTreasury;
     address public immutable protocolTreasury;
     address public immutable migrator;
 
@@ -38,7 +39,8 @@ contract ParcelFactory {
         string metadataURI
     );
 
-    constructor(address protocolTreasury_, address migrator_) {
+    constructor(address buybackTreasury_, address protocolTreasury_, address migrator_) {
+        buybackTreasury = buybackTreasury_;
         protocolTreasury = protocolTreasury_;
         migrator = migrator_;
     }
@@ -67,6 +69,7 @@ contract ParcelFactory {
             propertyClass_,
             msg.sender,
             feeBps,
+            buybackTreasury,
             protocolTreasury,
             migrator
         );
