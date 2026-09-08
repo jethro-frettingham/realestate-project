@@ -7,10 +7,11 @@ commodity-pair launchpad mechanics (fixed supply, virtual-liquidity curve,
 migration to a permanent AMM pool), swapped from commodities to real
 estate classes.
 
-**Status: front end works as a demo; contracts are a reference
-implementation, unaudited, and not deployed anywhere.** See
-[What this repo doesn't do yet](#what-this-repo-doesnt-do-yet) before you
-point real money at any of this.
+**Status: the contracts are real and deployable to Robinhood Chain
+Testnet — see [DEPLOY.md](DEPLOY.md) — and the front end wires up to a
+live deployment automatically. Still unaudited, testnet-only.** See
+[What this repo doesn't do yet](#what-this-repo-doesnt-do-yet) on the
+docs page before you point real money at any of this.
 
 ## Live pages
 
@@ -37,9 +38,14 @@ parcel-launch/
 │  ├─ PropertyClassCoin.sol   — mint/redeem coin per property class (the "pair coin")
 │  ├─ PriceOracle.sol         — reporter-fed USD index price per class
 │  ├─ ParcelFactory.sol       — deploys a launch (curve + token) in one tx
+│  ├─ TestnetMigrator.sol     — placeholder migration target (see DEPLOY.md)
+│  ├─ mocks/MockUSDG.sol      — open-mint testnet stand-in for USDG
 │  └─ interfaces/IUniswapV4Migrator.sol
+├─ script/Deploy.s.sol        — deploys the whole stack, writes deployments/testnet.json
+├─ deployments/testnet.json   — live addresses, read by assets/app.js at page load
 ├─ test/BondingCurve.t.sol    — Foundry tests for curve math and fee claims
-├─ foundry.toml, remappings.txt
+├─ foundry.toml, remappings.txt, .env.example
+├─ DEPLOY.md                  — full testnet deployment walkthrough
 └─ LICENSE
 ```
 
@@ -77,24 +83,25 @@ below).
 ## Local setup (contracts)
 
 ```bash
-forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts
+forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts --no-commit
 forge build
 forge test
 ```
 
-## Wiring the front end to a real deployment
+## Deploying to Robinhood Chain Testnet
 
-`assets/app.js` has two placeholders at the top:
+See **[DEPLOY.md](DEPLOY.md)** for the full walkthrough. Short version:
 
-```js
-const RH_CHAIN = { chainIdHex: "0x971b", rpcUrls: ["https://replace-with-robinhood-chain-rpc"], ... };
-const FACTORY_ADDRESS = "0x0000000000000000000000000000000000dEaD";
+```bash
+cp .env.example .env   # fill in PRIVATE_KEY with a funded testnet wallet
+forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
+git add deployments/testnet.json && git commit -m "Deploy to testnet" && git push
 ```
 
-Point `rpcUrls` and `FACTORY_ADDRESS` at a real deployment of
-`ParcelFactory`, then wire `launch.html`'s submit handler to call
-`createLaunch(...)` via ethers.js instead of only previewing the terms —
-that hook is the only piece intentionally left out of this demo.
+`assets/app.js` fetches `deployments/testnet.json` on every page load —
+once it has real addresses in it, `launch.html` switches from previewing
+terms to actually submitting a `createLaunch` transaction, and "Connect
+wallet" offers to add Robinhood Chain Testnet to the user's wallet.
 
 ## What this repo doesn't do yet
 
