@@ -1,29 +1,83 @@
 /**
  * app.js — shared front-end logic for Parcel.
  *
- * This is a static demo: there is no backend and no live chain
- * connection wired up yet. `connectWallet()` and the launch form use
- * the ethers.js CDN build so the plumbing (address, chainId, a real
- * signed tx to the contracts in /contracts) is a few lines away from
- * working once RH_CHAIN below is pointed at a live RPC and the
- * factory address is filled in.
+ * Robinhood Chain Testnet is wired for real: RH_CHAIN below is the
+ * network's actual public details, and `loadDeployment()` fetches
+ * deployments/testnet.json — written by script/Deploy.s.sol — to learn
+ * the live ParcelFactory, PriceOracle, and per-class coin addresses.
+ * Until that file has real addresses in it (see DEPLOY.md), the site
+ * runs in preview-only mode: everything renders and the bonding-curve
+ * math is real, but "Launch" won't submit a transaction.
  */
 
 const RH_CHAIN = {
-  chainName: "Robinhood Chain",
-  chainIdHex: "0x971b",     // placeholder — replace with the real chain id
-  rpcUrls: ["https://replace-with-robinhood-chain-rpc"],
+  chainName: "Robinhood Chain Testnet",
+  chainIdHex: "0xb626", // 46630
+  rpcUrls: ["https://rpc.testnet.chain.robinhood.com"],
   nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-  blockExplorerUrls: ["https://robinhoodchain.blockscout.com"],
+  blockExplorerUrls: ["https://explorer.testnet.chain.robinhood.com"],
 };
 
-const FACTORY_ADDRESS = "0x0000000000000000000000000000000000dEaD"; // TODO: deployed factory
+// Minimal ABI fragments — just what the site calls.
+const FACTORY_ABI = [
+  "function createLaunch(string name_, string symbol_, address pairCoin, string pairTicker, uint16 feeBps, string metadataURI, uint256 firstBuyIn, uint256 minTokensOut) returns (uint256 launchId, address curveAddr)",
+  "event LaunchCreated(uint256 indexed launchId, address indexed creator, address curve, address token, string pairTicker, uint16 feeBps, string metadataURI)",
+];
+const ERC20_ABI = [
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function balanceOf(address who) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+];
 
 /* ---------------------------------------------------------------------- */
-/* Wallet connect (stub, wired for ethers v6 via CDN)                     */
+/* Deployment loader — reads deployments/testnet.json                     */
+/* ---------------------------------------------------------------------- */
+
+let deploymentCache = null;
+
+/** Fetches deployments/testnet.json once and caches it. Returns null
+ *  (rather than throwing) if it's missing or still the unfilled
+ *  placeholder, so callers can fall back to preview mode. */
+async function loadDeployment() {
+  if (deploymentCache !== undefined && deploymentCache !== null) return deploymentCache;
+  try {
+    const res = await fetch("deployments/testnet.json", { cache: "no-store" });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.factory) return null; // still the placeholder
+    deploymentCache = json;
+    return json;
+  } catch (err) {
+    console.warn("No deployment found yet — running in preview mode.", err);
+    return null;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Wallet connect — real network add/switch, ethers v6 where loaded       */
 /* ---------------------------------------------------------------------- */
 
 let currentAccount = null;
+
+async function ensureRobinhoodTestnet() {
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: RH_CHAIN.chainIdHex }],
+    });
+  } catch (switchErr) {
+    // 4902 = chain not added to the wallet yet
+    if (switchErr.code === 4902) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [RH_CHAIN],
+      });
+    } else {
+      throw switchErr;
+    }
+  }
+}
 
 async function connectWallet() {
   const btn = document.querySelector("[data-connect]");
@@ -34,6 +88,7 @@ async function connectWallet() {
   try {
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     currentAccount = accounts[0];
+    await ensureRobinhoodTestnet();
     if (btn) {
       btn.dataset.connected = "true";
       btn.textContent = currentAccount.slice(0, 6) + "…" + currentAccount.slice(-4);
@@ -41,6 +96,7 @@ async function connectWallet() {
     document.dispatchEvent(new CustomEvent("parcel:connected", { detail: currentAccount }));
   } catch (err) {
     console.error("wallet connect failed", err);
+    alert("Couldn't connect: " + (err.message || err));
   }
 }
 
@@ -48,7 +104,59 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-connect]").forEach((btn) => {
     btn.addEventListener("click", connectWallet);
   });
+  loadDeployment(); // warm the cache; pages read it via Parcel.loadDeployment()
 });
+
+/* ---------------------------------------------------------------------- */
+/* Launch submission — real createLaunch() call via ethers v6             */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * Submits a launch to the deployed ParcelFactory. Requires ethers v6 to
+ * be loaded on the page (launch.html includes it via CDN) and a
+ * deployment to exist. Approves the pair coin for the factory if needed,
+ * then calls createLaunch in a second transaction (the factory pulls
+ * the first buy via transferFrom, so approval has to land first).
+ *
+ * @returns {Promise<{launchId: string, curve: string, token: string, txHash: string}>}
+ */
+async function submitLaunch({ name, symbol, pairCoinAddress, pairTicker, feeBps, metadataURI, firstBuyIn }) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  const deployment = await loadDeployment();
+  if (!deployment) throw new Error("No live deployment found yet — see DEPLOY.md to deploy the contracts first.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+
+  const pairCoin = new ethers.Contract(pairCoinAddress, ERC20_ABI, signer);
+  const factory = new ethers.Contract(deployment.factory, FACTORY_ABI, signer);
+
+  const owner = await signer.getAddress();
+  const allowance = await pairCoin.allowance(owner, deployment.factory);
+  if (allowance < firstBuyIn) {
+    const approveTx = await pairCoin.approve(deployment.factory, firstBuyIn);
+    await approveTx.wait();
+  }
+
+  const tx = await factory.createLaunch(name, symbol, pairCoinAddress, pairTicker, feeBps, metadataURI, firstBuyIn, 0n);
+  const receipt = await tx.wait();
+
+  const iface = new ethers.Interface(FACTORY_ABI);
+  let launchId = null, curve = null, token = null;
+  for (const log of receipt.logs) {
+    try {
+      const parsed = iface.parseLog(log);
+      if (parsed && parsed.name === "LaunchCreated") {
+        launchId = parsed.args.launchId.toString();
+        curve = parsed.args.curve;
+        token = parsed.args.token;
+      }
+    } catch (_) { /* not our event, ignore */ }
+  }
+
+  return { launchId, curve, token, txHash: receipt.hash };
+}
 
 /* ---------------------------------------------------------------------- */
 /* Glyph renderer — small elevation-sketch icons per property class       */
@@ -214,4 +322,7 @@ function quoteBuy(pairAmountIn, tokensSoldSoFar) {
   return Math.max(0, tokensOut);
 }
 
-window.Parcel = { parcelGlyph, renderClassTile, virtualReserves, quoteBuy, CURVE, connectWallet };
+window.Parcel = {
+  parcelGlyph, renderClassTile, virtualReserves, quoteBuy, CURVE,
+  connectWallet, loadDeployment, submitLaunch, ensureRobinhoodTestnet, RH_CHAIN,
+};
