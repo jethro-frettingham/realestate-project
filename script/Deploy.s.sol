@@ -4,13 +4,15 @@ pragma solidity ^0.8.24;
 import "forge-std/Script.sol";
 import "../contracts/ParcelFactory.sol";
 import "../contracts/TestnetMigrator.sol";
+import "../contracts/ParcelBuyback.sol";
 
 /// @title Deploy
 /// @notice Deploys the Parcel stack to Robinhood Chain Testnet: a
-///         TestnetMigrator and a ParcelFactory. That's it — launches are
-///         ETH-native, so there's no per-class coin, no USDG mock, and no
-///         oracle to seed. Writes both addresses to deployments/testnet.json,
-///         which assets/app.js reads at runtime.
+///         TestnetMigrator, the $PARCEL buyback token/treasury, and a
+///         ParcelFactory. Launches are ETH-native, so there's no per-class
+///         coin, no USDG mock, and no oracle to seed. Writes every address
+///         to deployments/testnet.json, which assets/app.js reads at
+///         runtime.
 ///
 /// Usage (from the repo root, after `forge install` and `cp .env.example
 /// .env` with PRIVATE_KEY filled in):
@@ -28,7 +30,8 @@ contract Deploy is Script {
         vm.startBroadcast(deployerKey);
 
         TestnetMigrator migrator = new TestnetMigrator();
-        ParcelFactory factory = new ParcelFactory(deployer, address(migrator));
+        ParcelBuyback buyback = new ParcelBuyback(deployer);
+        ParcelFactory factory = new ParcelFactory(address(buyback), deployer, address(migrator));
 
         vm.stopBroadcast();
 
@@ -42,12 +45,14 @@ contract Deploy is Script {
             '"deployer":"', vm.toString(deployer), '",',
             '"factory":"', vm.toString(address(factory)), '",',
             '"migrator":"', vm.toString(address(migrator)), '",',
+            '"parcelBuyback":"', vm.toString(address(buyback)), '",',
             '"deployedAt":', vm.toString(block.timestamp),
             "}"
         );
         vm.writeJson(json, "deployments/testnet.json");
 
         console2.log("TestnetMigrator:", address(migrator));
+        console2.log("ParcelBuyback:  ", address(buyback));
         console2.log("ParcelFactory:  ", address(factory));
         console2.log("Wrote deployments/testnet.json");
     }
