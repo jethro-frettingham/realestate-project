@@ -14,13 +14,11 @@ import "./interfaces/IUniswapV4Migrator.sol";
 ///         sells out. `propertyClass` (e.g. "SHED", "VILA") is a plain
 ///         string tag — it labels what the launch is tethered to for
 ///         display purposes, but nothing about buying or selling requires
-///         holding, minting, or approving any other token. Connect a
-///         wallet, send ETH, get tokens — the same as any other launch.
+///         holding, minting, or approving any other token.
 ///
-///         Virtual reserves are fixed constants (see VIRTUAL_ETH_RESERVE /
-///         VIRTUAL_TOKEN_RESERVE below), not derived from a price feed —
-///         there is nothing here that can revert because an oracle is
-///         stale or unset.
+///         No holder-reward accounting: every fee splits between the
+///         creator, the $PARCEL buyback treasury, and the protocol
+///         treasury. There's nothing to claim as a holder.
 /// @dev Reference implementation for the Parcel demo. Unaudited — this has
 ///      not been reviewed for reentrancy or rounding exploits and should
 ///      not hold real funds as-is.
@@ -39,8 +37,8 @@ contract BondingCurve {
     uint256 public constant VIRTUAL_ETH_RESERVE = 3 ether;
     uint256 public constant VIRTUAL_TOKEN_RESERVE = 1_073_000_000 ether;
 
-    uint16 public constant CREATOR_BPS = 3_000; // 30%
-    uint16 public constant HOLDER_BPS = 4_000;  // 40%
+    uint16 public constant CREATOR_BPS = 4_000; // 40%
+    uint16 public constant BUYBACK_BPS = 3_000; // 30% — swept toward $PARCEL buyback
     uint16 public constant PROTOCOL_BPS = 3_000; // 30%
     uint16 public constant BPS_DENOM = 10_000;
 
@@ -49,6 +47,7 @@ contract BondingCurve {
 
     address public immutable creator;
     uint16 public immutable feeBps;        // 100–300 (1%–3%), set at creation
+    address public immutable buybackTreasury;
     address public immutable protocolTreasury;
     IUniswapV4Migrator public immutable migrator;
 
@@ -58,13 +57,8 @@ contract BondingCurve {
     bool public migrated;
 
     uint256 public creatorFeesOwed;
+    uint256 public buybackFeesOwed;
     uint256 public protocolFeesOwed;
-
-    // Pull-based fee accounting for holders — see docs on why this isn't a
-    // push-to-every-holder transfer.
-    uint256 public holderFeePerShare; // scaled by 1e18
-    mapping(address => uint256) private _holderFeeCheckpoint;
-    mapping(address => uint256) public holderFeesOwed;
 
     event Trade(address indexed trader, bool isBuy, uint256 ethIn, uint256 tokensOut, uint256 ethOut, uint256 tokensIn);
     event Migrated(uint256 ethToPool, uint256 tokensToPool);
@@ -76,6 +70,7 @@ contract BondingCurve {
         string memory propertyClass_,
         address creator_,
         uint16 feeBps_,
+        address buybackTreasury_,
         address protocolTreasury_,
         address migrator_
     ) {
@@ -84,6 +79,7 @@ contract BondingCurve {
         propertyClass = propertyClass_;
         creator = creator_;
         feeBps = feeBps_;
+        buybackTreasury = buybackTreasury_;
         protocolTreasury = protocolTreasury_;
         migrator = IUniswapV4Migrator(migrator_);
 
@@ -173,52 +169,12 @@ contract BondingCurve {
 
     function _distributeFee(uint256 fee) internal {
         uint256 creatorCut = fee * CREATOR_BPS / BPS_DENOM;
-        uint256 holderCut = fee * HOLDER_BPS / BPS_DENOM;
-        uint256 protocolCut = fee - creatorCut - holderCut; // remainder avoids rounding dust loss
+        uint256 buybackCut = fee * BUYBACK_BPS / BPS_DENOM;
+        uint256 protocolCut = fee - creatorCut - buybackCut; // remainder avoids rounding dust loss
 
         creatorFeesOwed += creatorCut;
+        buybackFeesOwed += buybackCut;
         protocolFeesOwed += protocolCut;
-
-        uint256 circulating = tokensSold; // tokens currently out of the curve
-        if (circulating > 0 && holderCut > 0) {
-            holderFeePerShare += holderCut * 1e18 / circulating;
-        } else {
-            // No circulating supply to weight by yet — route to protocol
-            // rather than lock the fee in the contract.
-            protocolFeesOwed += holderCut;
-        }
-    }
-
-    /// @notice Claim a holder's accrued share of the 40% holder fee pool.
-    ///         Weighted by the caller's ParcelToken balance at each fee
-    ///         event since their last claim (standard reward-per-share
-    ///         accounting, the same pattern staking contracts use).
-    function claimHolderFees() external returns (uint256 amount) {
-        uint256 owed = _pendingHolderFees(msg.sender);
-        _holderFeeCheckpoint[msg.sender] = holderFeePerShare;
-        holderFeesOwed[msg.sender] = 0;
-        if (owed > 0) {
-            (bool sent, ) = msg.sender.call{value: owed}("");
-            require(sent, "BondingCurve: ETH transfer failed");
-            emit FeesClaimed(msg.sender, owed);
-        }
-        return owed;
-    }
-
-    function _pendingHolderFees(address who) internal view returns (uint256) {
-        uint256 delta = holderFeePerShare - _holderFeeCheckpoint[who];
-        uint256 accrued = delta * IERC20(address(token)).balanceOf(who) / 1e18;
-        return holderFeesOwed[who] + accrued;
-    }
-
-    /// @dev Called by transfer hooks in a full implementation to checkpoint
-    ///      a holder's accrued fees before their balance changes. Omitted
-    ///      here since ParcelToken is a plain OZ ERC20 — a production
-    ///      version would either override `_update` on the token to call
-    ///      back into the curve, or move to a snapshot/epoch model.
-    function checkpoint(address who) external {
-        holderFeesOwed[who] = _pendingHolderFees(who);
-        _holderFeeCheckpoint[who] = holderFeePerShare;
     }
 
     function claimCreatorFees() external {
@@ -229,6 +185,18 @@ contract BondingCurve {
             (bool sent, ) = creator.call{value: amount}("");
             require(sent, "BondingCurve: ETH transfer failed");
             emit FeesClaimed(creator, amount);
+        }
+    }
+
+    /// @notice Anyone can trigger a sweep — funds always go to the fixed
+    ///         buyback treasury address, never to the caller.
+    function sweepBuybackFees() external {
+        uint256 amount = buybackFeesOwed;
+        buybackFeesOwed = 0;
+        if (amount > 0) {
+            (bool sent, ) = buybackTreasury.call{value: amount}("");
+            require(sent, "BondingCurve: ETH transfer failed");
+            emit FeesClaimed(buybackTreasury, amount);
         }
     }
 
@@ -244,7 +212,7 @@ contract BondingCurve {
 
     function _migrate() internal {
         migrated = true;
-        uint256 ethBalance = address(this).balance - creatorFeesOwed - protocolFeesOwed;
+        uint256 ethBalance = address(this).balance - creatorFeesOwed - buybackFeesOwed - protocolFeesOwed;
         IERC20(address(token)).safeIncreaseAllowance(address(migrator), RESERVE_SUPPLY);
         migrator.createAndSeedPool{value: ethBalance}(address(token), RESERVE_SUPPLY, feeBps);
         emit Migrated(ethBalance, RESERVE_SUPPLY);
