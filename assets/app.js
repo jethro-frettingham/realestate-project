@@ -4,10 +4,12 @@
  * Robinhood Chain Testnet is wired for real: RH_CHAIN below is the
  * network's actual public details, and `loadDeployment()` fetches
  * deployments/testnet.json — written by script/Deploy.s.sol — to learn
- * the live ParcelFactory, PriceOracle, and per-class coin addresses.
- * Until that file has real addresses in it (see DEPLOY.md), the site
- * runs in preview-only mode: everything renders and the bonding-curve
- * math is real, but "Launch" won't submit a transaction.
+ * the live ParcelFactory address. Launches are ETH-native: connect a
+ * wallet, send ETH, get tokens. No pair coin, no minting step, nothing to
+ * approve before your first buy. Until deployments/testnet.json has a
+ * real factory address in it (see DEPLOY.md), the site runs in
+ * preview-only mode: everything renders and the bonding-curve math is
+ * real, but "Launch" won't submit a transaction.
  */
 
 const RH_CHAIN = {
@@ -20,14 +22,8 @@ const RH_CHAIN = {
 
 // Minimal ABI fragments — just what the site calls.
 const FACTORY_ABI = [
-  "function createLaunch(string name_, string symbol_, address pairCoin, string pairTicker, uint16 feeBps, string metadataURI, uint256 firstBuyIn, uint256 minTokensOut) returns (uint256 launchId, address curveAddr)",
-  "event LaunchCreated(uint256 indexed launchId, address indexed creator, address curve, address token, string pairTicker, uint16 feeBps, string metadataURI)",
-];
-const ERC20_ABI = [
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)",
-  "function balanceOf(address who) view returns (uint256)",
-  "function decimals() view returns (uint8)",
+  "function createLaunch(string name_, string symbol_, string propertyClass_, uint16 feeBps, string metadataURI, uint256 minTokensOut) payable returns (uint256 launchId, address curveAddr)",
+  "event LaunchCreated(uint256 indexed launchId, address indexed creator, address curve, address token, string propertyClass, uint16 feeBps, string metadataURI)",
 ];
 
 /* ---------------------------------------------------------------------- */
@@ -114,13 +110,12 @@ document.addEventListener("DOMContentLoaded", () => {
 /**
  * Submits a launch to the deployed ParcelFactory. Requires ethers v6 to
  * be loaded on the page (launch.html includes it via CDN) and a
- * deployment to exist. Approves the pair coin for the factory if needed,
- * then calls createLaunch in a second transaction (the factory pulls
- * the first buy via transferFrom, so approval has to land first).
+ * deployment to exist. One transaction, ETH-native — no approval step,
+ * no pair coin, nothing to mint first.
  *
  * @returns {Promise<{launchId: string, curve: string, token: string, txHash: string}>}
  */
-async function submitLaunch({ name, symbol, pairCoinAddress, pairTicker, feeBps, metadataURI, firstBuyIn }) {
+async function submitLaunch({ name, symbol, propertyClass, feeBps, metadataURI, firstBuyIn }) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet — see DEPLOY.md to deploy the contracts first.");
@@ -128,18 +123,9 @@ async function submitLaunch({ name, symbol, pairCoinAddress, pairTicker, feeBps,
 
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
-
-  const pairCoin = new ethers.Contract(pairCoinAddress, ERC20_ABI, signer);
   const factory = new ethers.Contract(deployment.factory, FACTORY_ABI, signer);
 
-  const owner = await signer.getAddress();
-  const allowance = await pairCoin.allowance(owner, deployment.factory);
-  if (allowance < firstBuyIn) {
-    const approveTx = await pairCoin.approve(deployment.factory, firstBuyIn);
-    await approveTx.wait();
-  }
-
-  const tx = await factory.createLaunch(name, symbol, pairCoinAddress, pairTicker, feeBps, metadataURI, firstBuyIn, 0n);
+  const tx = await factory.createLaunch(name, symbol, propertyClass, feeBps, metadataURI, 0n, { value: firstBuyIn });
   const receipt = await tx.wait();
 
   const iface = new ethers.Interface(FACTORY_ABI);
@@ -289,35 +275,31 @@ const CURVE = {
   totalSupply: 1_000_000_000,
   curveSupply: 800_000_000,
   reserveSupply: 200_000_000,
-  openCapUSD: 5_000,
-  migrateCapUSD: 35_000,
+  virtualEthReserve: 3,             // ETH — matches BondingCurve.VIRTUAL_ETH_RESERVE
+  virtualTokenReserve: 1_073_000_000, // matches BondingCurve.VIRTUAL_TOKEN_RESERVE
 };
 
-/**
- * Constant-product virtual curve, parameterised so it opens at
- * openCapUSD and finishes at migrateCapUSD once all curveSupply
- * tokens are sold. See contracts/BondingCurve.sol `_virtualReserves`
- * for the on-chain version of this same formula.
- */
+/** Fixed virtual reserves, straight from the constants above — this is a
+ *  read, not a derivation; the contract doesn't compute these from
+ *  anything either. */
 function virtualReserves() {
-  const { curveSupply, openCapUSD, migrateCapUSD, totalSupply } = CURVE;
-  const startPrice = openCapUSD / totalSupply;
-  const endPrice = migrateCapUSD / totalSupply;
-  const k = startPrice * (curveSupply * (endPrice / startPrice)) / (endPrice / startPrice - 1) * -1;
-  // Simplify with explicit virtual reserves instead (more stable numerically):
-  const virtualTokens = curveSupply / (Math.sqrt(endPrice / startPrice) - 1);
-  const virtualPair = virtualTokens * startPrice;
-  return { virtualTokens, virtualPair, startPrice, endPrice };
+  return {
+    virtualTokens: CURVE.virtualTokenReserve,
+    virtualEth: CURVE.virtualEthReserve,
+  };
 }
 
-function quoteBuy(pairAmountIn, tokensSoldSoFar) {
-  const { virtualTokens, virtualPair } = virtualReserves();
+/** Estimate tokens received for `ethIn` ETH, given `tokensSoldSoFar` have
+ *  already sold on the curve. Mirrors BondingCurve.buy's constant-product
+ *  math (ignoring the trading fee, which the UI shows separately). */
+function quoteBuy(ethIn, tokensSoldSoFar) {
+  const { virtualTokens, virtualEth } = virtualReserves();
   const tIn = tokensSoldSoFar;
-  const pairReserve = virtualPair + (tIn > 0 ? (virtualTokens * virtualPair) / (virtualTokens - tIn) - virtualPair : 0);
+  const ethReserve = virtualEth + (tIn > 0 ? (virtualTokens * virtualEth) / (virtualTokens - tIn) - virtualEth : 0);
   const tokenReserve = virtualTokens - tIn;
-  const k = pairReserve * tokenReserve;
-  const newPairReserve = pairReserve + pairAmountIn;
-  const newTokenReserve = k / newPairReserve;
+  const k = ethReserve * tokenReserve;
+  const newEthReserve = ethReserve + ethIn;
+  const newTokenReserve = k / newEthReserve;
   const tokensOut = tokenReserve - newTokenReserve;
   return Math.max(0, tokensOut);
 }

@@ -94,20 +94,16 @@
               <button type="button" class="fee-opt" data-fee="2" aria-pressed="true">2%</button>
               <button type="button" class="fee-opt" data-fee="3">3%</button>
             </div>
-            <p class="hint">Charged on every trade, on the curve and in the pool after migration. You keep 30% of it; holders of your pair split 40%, paid automatically in the pair coin.</p>
+            <p class="hint">Charged on every trade, on the curve and in the pool after migration. You keep 30% of it; holders of your token split 40%, paid automatically in ETH.</p>
           </div>
 
           <div class="field">
             <label for="first-buy">Your first buy</label>
             <div class="buy-row">
               <input type="text" id="first-buy" placeholder="0.00" inputmode="decimal">
-              <select class="currency-select" id="buy-currency">
-                <option>ETH</option>
-                <option>USDG</option>
-                <option id="pair-currency-option">SHED</option>
-              </select>
+              <span class="currency-select" style="display:flex; align-items:center;">ETH</span>
             </div>
-            <p class="hint" id="buy-hint">At least $1. ETH and USDG are swapped to your pair coin and bought into your market in the same transaction.</p>
+            <p class="hint" id="buy-hint">Paid straight in ETH — no approval, no pair coin, nothing to mint first.</p>
           </div>
 
         </div>
@@ -119,8 +115,8 @@
           <div class="spec">
             <div class="spec-row"><span class="k">Paired with</span><span class="v brass" id="ov-pair">—</span></div>
             <div class="spec-row"><span class="k">Supply</span><span class="v">1,000,000,000</span></div>
-            <div class="spec-row"><span class="k">Opens at</span><span class="v">$5,000 cap</span></div>
-            <div class="spec-row"><span class="k">Migrates at</span><span class="v">$35,000 cap</span></div>
+            <div class="spec-row"><span class="k">Opens at</span><span class="v">~2.8 ETH implied cap</span></div>
+            <div class="spec-row"><span class="k">Migrates at</span><span class="v">~8.8 ETH raised</span></div>
             <div class="spec-row"><span class="k">Trading fee</span><span class="v" id="ov-fee">2%</span></div>
             <div class="spec-row"><span class="k">First buy</span><span class="v" id="ov-buy">—</span></div>
             <div class="spec-row"><span class="k">You receive</span><span class="v" id="ov-receive">—</span></div>
@@ -172,25 +168,15 @@
   async function refreshMode() {
     deployment = await Parcel.loadDeployment();
     const disclosure = document.getElementById("mode-disclosure");
-    const currencySelect = document.getElementById("buy-currency");
-    const ethOpt = currencySelect.options[0];
-    const usdgOpt = currencySelect.options[1];
 
     if (deployment) {
       disclosure.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong>
         This submits a real <code>createLaunch</code> transaction to
         <a href="${deployment.explorer}/address/${deployment.factory}" target="_blank" rel="noopener" style="color:var(--brass-bright);">
-        the deployed ParcelFactory</a>. Get testnet ETH and pair-coin balance first — see
-        <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>.
+        the deployed ParcelFactory</a> — paid in ETH, nothing to approve or mint first. Get testnet ETH from
+        <a href="${deployment.faucet}" target="_blank" rel="noopener" style="color:var(--brass-bright);">the faucet</a> if you need it.
         Tokenizing a specific physical property may make the resulting coin a security in your
         jurisdiction — that's a legal question for a lawyer, not a setting in this repo.`;
-      // The contract takes the pair coin directly (no in-contract ETH/USDG
-      // swap yet) — restrict the currency choice to what will actually work.
-      ethOpt.disabled = true;
-      usdgOpt.disabled = true;
-      currencySelect.value = document.getElementById("pair-currency-option").textContent;
-      document.getElementById("buy-hint").textContent =
-        "Paid directly in the pair coin on testnet — mint some via the coin's mint() first (see DEPLOY.md).";
     } else {
       disclosure.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet at
         <code>deployments/testnet.json</code>. The terms below are real bonding-curve math, but
@@ -202,9 +188,7 @@
   function updateOverview() {
     document.getElementById("ov-pair").textContent = selectedClass.ticker;
     document.getElementById("panel-sub").textContent = selectedClass.label + " — " + selectedClass.unit;
-    document.getElementById("pair-currency-option").textContent = selectedClass.ticker;
     document.getElementById("ov-fee").textContent = selectedFee + "%";
-    if (deployment) document.getElementById("buy-currency").value = selectedClass.ticker;
     recalcReceive();
   }
 
@@ -238,7 +222,7 @@
   function recalcReceive() {
     const buyEl = document.getElementById("first-buy");
     const amt = parseFloat(buyEl.value);
-    document.getElementById("ov-buy").textContent = buyEl.value ? buyEl.value + " " + document.getElementById("buy-currency").value : "—";
+    document.getElementById("ov-buy").textContent = buyEl.value ? buyEl.value + " ETH" : "—";
     if (!amt || amt <= 0) {
       document.getElementById("ov-receive").textContent = "—";
       return;
@@ -250,7 +234,6 @@
   }
 
   document.getElementById("first-buy").addEventListener("input", recalcReceive);
-  document.getElementById("buy-currency").addEventListener("change", recalcReceive);
   document.getElementById("ticker").addEventListener("input", recalcReceive);
 
   // Metadata storage isn't wired to IPFS in this demo — bundle the form's
@@ -266,9 +249,11 @@
       x: document.getElementById("x").value || null,
       telegram: document.getElementById("telegram").value || null,
       description: document.getElementById("description").value || null,
-      note: "testnet demo metadata — not pinned to IPFS",
+      note: "testnet demo metadata -- not pinned to IPFS",
     };
-    return "data:application/json;base64," + btoa(JSON.stringify(meta));
+    // btoa only handles Latin1 — encode through UTF-8 first so names,
+    // descriptions, etc. with accents/emoji/em dashes don't break it.
+    return "data:application/json;base64," + btoa(unescape(encodeURIComponent(JSON.stringify(meta))));
   }
 
   actionBtn.addEventListener("click", async () => {
@@ -287,17 +272,13 @@
     if (!name || !symbol) { setStatus("Name and ticker are required.", true); return; }
     if (!amountStr || parseFloat(amountStr) <= 0) { setStatus("Enter a first-buy amount.", true); return; }
 
-    const pairCoinAddress = deployment.classCoins[selectedClass.ticker];
-    if (!pairCoinAddress) { setStatus(selectedClass.ticker + " has no deployed coin.", true); return; }
-
     actionBtn.disabled = true;
     try {
-      setStatus("Approving " + selectedClass.ticker + "…");
-      const firstBuyIn = ethers.parseUnits(amountStr, 18);
+      setStatus("Confirm in your wallet…");
+      const firstBuyIn = ethers.parseEther(amountStr);
       const result = await Parcel.submitLaunch({
         name, symbol,
-        pairCoinAddress,
-        pairTicker: selectedClass.ticker,
+        propertyClass: selectedClass.ticker,
         feeBps: selectedFee * 100,
         metadataURI: buildMetadataURI(),
         firstBuyIn,
