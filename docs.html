@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How it works · Parcel</title>
+<meta name="description" content="How launches, property-class coins, migration, and fees work on Parcel.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="4" y="4" width="22" height="22"/>
+        <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
+        <circle cx="19" cy="19" r="3.4"/>
+      </svg>
+      <span>Parcel<span class="sub">launched on Robinhood Chain</span></span>
+    </a>
+    <nav class="primary">
+      <a href="index.html">Markets</a>
+      <a href="classes.html">Property classes</a>
+      <a href="launch.html">Launch</a>
+      <a href="docs.html" aria-current="page">How it works</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span class="chain-tag">Robinhood Chain · demo</span>
+      <button class="btn-connect" data-connect>Connect wallet</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="section" style="padding-top:48px;">
+    <div class="wrap">
+      <span class="eyebrow-tag">Docs</span>
+      <h1 style="margin-top:16px;">How it works</h1>
+      <p class="lede">
+        Parcel is a launchpad on Robinhood Chain. Every market is paired with a
+        property-class coin instead of a stablecoin — a shed, a couch, a villa, a
+        high-rise unit. The mechanics below are identical no matter which class
+        a launch picks.
+      </p>
+    </div>
+  </section>
+
+  <section class="section" id="coins">
+    <div class="wrap">
+      <h2>Property-class coins</h2>
+      <p>
+        Each of the 20 classes on <a href="classes.html" style="color:var(--brass-bright);">the class list</a> has
+        a coin that tracks an index price for that class. A market's USD price is always:
+      </p>
+      <div class="spec" style="max-width:520px; margin:18px 0;">
+        <div class="spec-row"><span class="k">token USD price</span><span class="v brass">price in pair coin × pair coin's USD index</span></div>
+      </div>
+      <p>
+        Real estate doesn't trade on a continuous exchange the way gold or wheat does, so
+        each class's index is a rolling median of recent comparable sale and listing data
+        for that class, submitted by a set of oracle reporters and aggregated on-chain by
+        <code>PriceOracle.sol</code>. A single-sided liquidity pool keeps each class coin
+        buyable and sellable against USDG at that index price, the same role a Uniswap pool
+        plays for a commodity coin. For classes with no reliable data feed yet — a friend's
+        couch, a lean-to — the index is a fixed, published reference price maintained by the
+        Parcel team until a real data source exists; that's disclosed on the class's own page.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2>Launch terms</h2>
+      <p>Every launch follows the same curve, whatever it's paired with.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="num"></div>
+          <div>
+            <h3>Mint and open</h3>
+            <p>A launch mints 1,000,000,000 tokens. 800 million sell on a virtual-liquidity
+              curve that opens at a $5,000 market cap and completes at $35,000, both fixed
+              in the pair coin at creation. 200 million are reserved for migration.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="num"></div>
+          <div>
+            <h3>Creator sets the fee and buys first</h3>
+            <p>The creator picks a trading fee between 1% and 3% and makes a first buy of at
+              least $1 in the same transaction that creates the market — a market can't exist
+              with zero buyers. Buys can be paid in ETH, USDG, or the pair coin directly; ETH
+              and USDG are swapped to the pair coin on the way in.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="num"></div>
+          <div>
+            <h3>Trade on the curve</h3>
+            <p>Anyone can buy or sell against the curve while it's open. Price moves along a
+              constant-product virtual curve — no external liquidity is at risk during this
+              phase, since the reserves are virtual until migration.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="num"></div>
+          <div>
+            <h3>Migrate</h3>
+            <p>When the last curve token sells, the pair coin raised and the reserved 200
+              million tokens move into a Uniswap v4 pool in the same transaction, at the
+              curve's final price. The pool charges the same fee the creator chose, enforced
+              by the pool itself, and its liquidity is permanent — it isn't withdrawable by
+              the creator or by Parcel.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2>Fees</h2>
+      <p>Every fee is split the same way on the curve and in the pool after migration:</p>
+      <table class="fee-table">
+        <thead>
+          <tr><th>Recipient</th><th>Share</th><th>Paid in</th><th>How</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Creator</td><td>30%</td><td>pair coin</td><td>Claimed from the account page, any time.</td></tr>
+          <tr><td>Holders of the market's pair</td><td>40%</td><td>the pair coin</td><td>Weighted by balance, sent automatically — no claim step.</td></tr>
+          <tr><td>Parcel</td><td>30%</td><td>pair coin</td><td>Funds oracle reporting and the exchange.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2>Market metadata</h2>
+      <p>
+        A launch stores its image, name, and links in content-addressed storage. The
+        permanent metadata URI is written on chain at creation and never changes, so a
+        market's name, image, and links stay exactly what its creator published —
+        including for the joke listings.
+      </p>
+    </div>
+  </section>
+
+  <section class="section" style="border-bottom:none;">
+    <div class="wrap">
+      <h2>What this repo doesn't do yet</h2>
+      <p>This is a working front end over a reference contract set, not a live deployment. Specifically:</p>
+      <ul style="color:var(--paper-dim); max-width:64ch;">
+        <li>The contracts in <code>/contracts</code> are unaudited and not deployed anywhere — <code>FACTORY_ADDRESS</code> in <code>assets/app.js</code> is a placeholder.</li>
+        <li><code>PriceOracle.sol</code> takes reporter-submitted prices; it doesn't ship a real data pipeline to Zillow, Redfin, county records, or any other source.</li>
+        <li>Nothing here evaluates whether tokenizing a specific physical property makes the resulting coin a security, a real-estate-adjacent financial product, or something requiring registration in your jurisdiction. That's a legal question, not a code path — talk to a lawyer before this touches real money or real property titles.</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Parcel — a demo launchpad. Unaudited contracts, no live deployment yet.</span>
+    <span><a href="classes.html">Property classes</a> · <a href="launch.html">Launch</a></span>
+  </div>
+</footer>
+
+<script src="assets/classes.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

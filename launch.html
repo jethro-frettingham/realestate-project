@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launch · Parcel</title>
+<meta name="description" content="Launch a coin tethered to a property class on Robinhood Chain.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="4" y="4" width="22" height="22"/>
+        <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
+        <circle cx="19" cy="19" r="3.4"/>
+      </svg>
+      <span>Parcel<span class="sub">launched on Robinhood Chain</span></span>
+    </a>
+    <nav class="primary">
+      <a href="index.html">Markets</a>
+      <a href="classes.html">Property classes</a>
+      <a href="launch.html" aria-current="page">Launch</a>
+      <a href="docs.html">How it works</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span class="chain-tag">Robinhood Chain · demo</span>
+      <button class="btn-connect" data-connect>Connect wallet</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="section" style="padding-top:48px; border-bottom:none;">
+    <div class="wrap">
+      <span class="eyebrow-tag">New market</span>
+      <h1 style="margin-top:16px;">Launch a coin</h1>
+      <p class="lede">Set the terms once — supply, curve, and migration are fixed by the contract, not by you.</p>
+
+      <form id="launch-form" class="launch-grid" style="margin-top:36px;">
+        <div>
+
+          <div class="field">
+            <label for="image">Image</label>
+            <div class="dropzone" id="dropzone">
+              <span id="dropzone-text">PNG, JPEG, WebP · up to 5&nbsp;MB</span>
+              <input type="file" id="image" accept="image/png,image/jpeg,image/webp" style="display:none;">
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="name">Name</label>
+            <input type="text" id="name" placeholder="e.g. Nana's Storage Shed" maxlength="60">
+          </div>
+
+          <div class="field">
+            <label for="ticker">Ticker</label>
+            <input type="text" id="ticker" placeholder="e.g. NANASHED" maxlength="12" style="text-transform:uppercase;">
+          </div>
+
+          <div class="field">
+            <label for="website">Website · optional</label>
+            <input type="text" id="website" placeholder="https://">
+          </div>
+
+          <div class="field">
+            <label for="x">X · optional</label>
+            <input type="text" id="x" placeholder="https://x.com/">
+          </div>
+
+          <div class="field">
+            <label for="telegram">Telegram · optional</label>
+            <input type="text" id="telegram" placeholder="https://t.me/">
+          </div>
+
+          <div class="field">
+            <label for="description">Description · optional</label>
+            <textarea id="description" maxlength="500" placeholder="What is this place, and why does it deserve a coin?"></textarea>
+          </div>
+
+          <div class="field">
+            <label>Paired with</label>
+            <div class="class-picker" id="class-picker"></div>
+          </div>
+
+          <div class="field">
+            <label>Trading fee</label>
+            <div class="fee-picker" id="fee-picker">
+              <button type="button" class="fee-opt" data-fee="1">1%</button>
+              <button type="button" class="fee-opt" data-fee="2" aria-pressed="true">2%</button>
+              <button type="button" class="fee-opt" data-fee="3">3%</button>
+            </div>
+            <p class="hint">Charged on every trade, on the curve and in the pool after migration. You keep 30% of it; holders of your pair split 40%, paid automatically in the pair coin.</p>
+          </div>
+
+          <div class="field">
+            <label for="first-buy">Your first buy</label>
+            <div class="buy-row">
+              <input type="text" id="first-buy" placeholder="0.00" inputmode="decimal">
+              <select class="currency-select" id="buy-currency">
+                <option>ETH</option>
+                <option>USDG</option>
+                <option id="pair-currency-option">SHED</option>
+              </select>
+            </div>
+            <p class="hint">At least $1. ETH and USDG are swapped to your pair coin and bought into your market in the same transaction.</p>
+          </div>
+
+        </div>
+
+        <aside class="panel">
+          <h3>Overview</h3>
+          <div class="sub" id="panel-sub">Pick a class to see its live terms.</div>
+
+          <div class="spec">
+            <div class="spec-row"><span class="k">Paired with</span><span class="v brass" id="ov-pair">—</span></div>
+            <div class="spec-row"><span class="k">Supply</span><span class="v">1,000,000,000</span></div>
+            <div class="spec-row"><span class="k">Opens at</span><span class="v">$5,000 cap</span></div>
+            <div class="spec-row"><span class="k">Migrates at</span><span class="v">$35,000 cap</span></div>
+            <div class="spec-row"><span class="k">Trading fee</span><span class="v" id="ov-fee">2%</span></div>
+            <div class="spec-row"><span class="k">First buy</span><span class="v" id="ov-buy">—</span></div>
+            <div class="spec-row"><span class="k">You receive</span><span class="v" id="ov-receive">—</span></div>
+          </div>
+
+          <div class="disclosure">
+            <strong>Demo only.</strong> This form doesn't submit a transaction yet — wire
+            <code>FACTORY_ADDRESS</code> in <code>assets/app.js</code> to a deployed
+            <code>ParcelFactory</code> (see <code>/contracts</code>) to make it real.
+            Tokenizing a specific physical property may make the resulting coin a security
+            in your jurisdiction; that's a legal question for a lawyer, not a setting in this repo.
+          </div>
+
+          <button type="button" class="btn-connect" data-connect style="width:100%; margin-top:16px;">Connect wallet to launch</button>
+        </aside>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Parcel — a demo launchpad. Unaudited contracts, no live deployment yet.</span>
+    <span><a href="docs.html">How it works</a> · <a href="classes.html">Property classes</a></span>
+  </div>
+</footer>
+
+<script src="assets/classes.js"></script>
+<script src="assets/app.js"></script>
+<script>
+  const picker = document.getElementById("class-picker");
+  picker.innerHTML = PROPERTY_CLASSES.map((c, i) =>
+    `<button type="button" class="class-opt" data-ticker="${c.ticker}" aria-pressed="${i === 0}">${c.ticker}</button>`
+  ).join("");
+
+  let selectedClass = PROPERTY_CLASSES[0];
+  let selectedFee = 2;
+
+  function updateOverview() {
+    document.getElementById("ov-pair").textContent = selectedClass.ticker;
+    document.getElementById("panel-sub").textContent = selectedClass.label + " — " + selectedClass.unit;
+    document.getElementById("pair-currency-option").textContent = selectedClass.ticker;
+    document.getElementById("ov-fee").textContent = selectedFee + "%";
+    recalcReceive();
+  }
+
+  picker.addEventListener("click", (e) => {
+    const btn = e.target.closest(".class-opt");
+    if (!btn) return;
+    picker.querySelectorAll(".class-opt").forEach(b => b.setAttribute("aria-pressed", "false"));
+    btn.setAttribute("aria-pressed", "true");
+    selectedClass = PROPERTY_CLASSES.find(c => c.ticker === btn.dataset.ticker);
+    updateOverview();
+  });
+
+  const feePicker = document.getElementById("fee-picker");
+  feePicker.addEventListener("click", (e) => {
+    const btn = e.target.closest(".fee-opt");
+    if (!btn) return;
+    feePicker.querySelectorAll(".fee-opt").forEach(b => b.setAttribute("aria-pressed", "false"));
+    btn.setAttribute("aria-pressed", "true");
+    selectedFee = Number(btn.dataset.fee);
+    updateOverview();
+  });
+
+  const dropzone = document.getElementById("dropzone");
+  const imageInput = document.getElementById("image");
+  dropzone.addEventListener("click", () => imageInput.click());
+  imageInput.addEventListener("change", () => {
+    const f = imageInput.files[0];
+    document.getElementById("dropzone-text").textContent = f ? f.name : "PNG, JPEG, WebP · up to 5 MB";
+  });
+
+  function recalcReceive() {
+    const buyEl = document.getElementById("first-buy");
+    const amt = parseFloat(buyEl.value);
+    document.getElementById("ov-buy").textContent = buyEl.value ? buyEl.value + " " + document.getElementById("buy-currency").value : "—";
+    if (!amt || amt <= 0) {
+      document.getElementById("ov-receive").textContent = "—";
+      return;
+    }
+    // Demo estimate only: treats the buy amount as pair-coin-equivalent.
+    const tokensOut = Parcel.quoteBuy(amt, 0);
+    document.getElementById("ov-receive").textContent = Math.round(tokensOut).toLocaleString() + " " + document.getElementById("ticker").value.toUpperCase().slice(0,12) || "tokens";
+  }
+
+  document.getElementById("first-buy").addEventListener("input", recalcReceive);
+  document.getElementById("buy-currency").addEventListener("change", recalcReceive);
+  document.getElementById("ticker").addEventListener("input", recalcReceive);
+
+  updateOverview();
+</script>
+</body>
+</html>

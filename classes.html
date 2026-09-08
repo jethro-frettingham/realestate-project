@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Property classes · Parcel</title>
+<meta name="description" content="Every property class you can pair a launch with on Parcel.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="4" y="4" width="22" height="22"/>
+        <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
+        <circle cx="19" cy="19" r="3.4"/>
+      </svg>
+      <span>Parcel<span class="sub">launched on Robinhood Chain</span></span>
+    </a>
+    <nav class="primary">
+      <a href="index.html">Markets</a>
+      <a href="classes.html" aria-current="page">Property classes</a>
+      <a href="launch.html">Launch</a>
+      <a href="docs.html">How it works</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span class="chain-tag">Robinhood Chain · demo</span>
+      <button class="btn-connect" data-connect>Connect wallet</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="section" style="padding-top:56px;">
+    <div class="wrap">
+      <span class="eyebrow-tag">20 classes</span>
+      <h1 style="margin-top:16px;">Pick what your launch is tethered to.</h1>
+      <p class="lede">
+        Each class has its own coin and its own index price — see
+        <a href="docs.html#coins" style="color:var(--brass-bright);">how the index is priced</a>.
+        A market's USD value is always <code>token price in the pair coin × the pair coin's index price</code>,
+        the same formula whether the pair is a storage shed or a manor estate.
+      </p>
+    </div>
+  </section>
+
+  <section class="section" style="border-bottom:none;">
+    <div class="wrap">
+      <div class="tile-grid" id="all-classes"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Parcel — a demo launchpad. Unaudited contracts, no live deployment yet.</span>
+    <span><a href="docs.html">How it works</a> · <a href="launch.html">Launch</a></span>
+  </div>
+</footer>
+
+<script src="assets/classes.js"></script>
+<script src="assets/app.js"></script>
+<script>
+  document.getElementById("all-classes").innerHTML =
+    PROPERTY_CLASSES.map(c => renderClassTile(c)).join("");
+</script>
+</body>
+</html>
