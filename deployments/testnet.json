@@ -1,0 +1,15 @@
+{
+  "chainId": 46630,
+  "chainName": "Robinhood Chain Testnet",
+  "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
+  "explorer": "https://explorer.testnet.chain.robinhood.com",
+  "faucet": "https://faucet.testnet.chain.robinhood.com",
+  "deployer": null,
+  "factory": null,
+  "oracle": null,
+  "usdg": null,
+  "migrator": null,
+  "deployedAt": null,
+  "classCoins": {},
+  "_note": "Placeholder. Run `forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast` to overwrite this with real addresses — see DEPLOY.md."
+}
