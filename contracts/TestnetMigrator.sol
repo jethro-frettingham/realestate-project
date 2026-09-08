@@ -7,10 +7,10 @@ import "./interfaces/IUniswapV4Migrator.sol";
 
 /// @title TestnetMigrator
 /// @notice Stands in for a real Uniswap v4 migration on Robinhood Chain
-///         Testnet. It does not create a pool — it just pulls the raised
-///         pair coin and the reserved 200,000,000 tokens out of the curve
-///         and holds them, so `BondingCurve._migrate()` has something real
-///         to call and a launch's sellout doesn't revert.
+///         Testnet. It does not create a pool — it just pulls the reserved
+///         200,000,000 tokens and holds the ETH raised, so
+///         `BondingCurve._migrate()` has something real to call and a
+///         launch's sellout doesn't revert.
 ///
 ///         This means a migrated market has no trading venue on testnet —
 ///         there is nowhere to buy or sell it after sellout. That's an
@@ -23,17 +23,14 @@ import "./interfaces/IUniswapV4Migrator.sol";
 contract TestnetMigrator is IUniswapV4Migrator {
     using SafeERC20 for IERC20;
 
-    event Held(address indexed token, address indexed pairCoin, uint256 pairAmount, uint256 tokenAmount, uint16 feeBps);
+    event Held(address indexed token, uint256 ethAmount, uint256 tokenAmount, uint16 feeBps);
 
     function createAndSeedPool(
         address token,
-        address pairCoin,
-        uint256 pairAmount,
         uint256 tokenAmount,
         uint16 feeBps
-    ) external override {
+    ) external payable override {
         IERC20(token).safeTransferFrom(msg.sender, address(this), tokenAmount);
-        IERC20(pairCoin).safeTransferFrom(msg.sender, address(this), pairAmount);
-        emit Held(token, pairCoin, pairAmount, tokenAmount, feeBps);
+        emit Held(token, msg.value, tokenAmount, feeBps);
     }
 }

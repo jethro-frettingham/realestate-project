@@ -4,24 +4,26 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./ParcelToken.sol";
-import "./PriceOracle.sol";
 import "./interfaces/IUniswapV4Migrator.sol";
 
 /// @title BondingCurve
 /// @notice One curve per launch. Holds the full 1,000,000,000 ParcelToken
-///         supply, sells 800,000,000 of it against a virtual constant-product
-///         curve priced in `pairCoin`, and migrates the remaining 200,000,000
-///         plus everything raised into a Uniswap v4 pool once the curve
-///         sells out.
+///         supply, sells 800,000,000 of it directly against ETH on a virtual
+///         constant-product curve, and migrates the remaining 200,000,000
+///         tokens plus all ETH raised into a Uniswap v4 pool once the curve
+///         sells out. `propertyClass` (e.g. "SHED", "VILA") is a plain
+///         string tag — it labels what the launch is tethered to for
+///         display purposes, but nothing about buying or selling requires
+///         holding, minting, or approving any other token. Connect a
+///         wallet, send ETH, get tokens — the same as any other launch.
 ///
-///         The curve's virtual reserves are chosen so it opens at
-///         `OPEN_CAP_USD` and finishes at `MIGRATE_CAP_USD`, both expressed
-///         in the pair coin at creation time (see `_deriveVirtualReserves`).
-///         Reserves are virtual, not funded — no external liquidity is at
-///         risk before migration.
+///         Virtual reserves are fixed constants (see VIRTUAL_ETH_RESERVE /
+///         VIRTUAL_TOKEN_RESERVE below), not derived from a price feed —
+///         there is nothing here that can revert because an oracle is
+///         stale or unset.
 /// @dev Reference implementation for the Parcel demo. Unaudited — this has
-///      not been reviewed for reentrancy, oracle manipulation, or rounding
-///      exploits and should not hold real funds as-is.
+///      not been reviewed for reentrancy or rounding exploits and should
+///      not hold real funds as-is.
 contract BondingCurve {
     using SafeERC20 for IERC20;
 
@@ -29,8 +31,13 @@ contract BondingCurve {
     uint256 public constant CURVE_SUPPLY = 800_000_000 ether;
     uint256 public constant RESERVE_SUPPLY = 200_000_000 ether; // moves to the v4 pool at migration
 
-    uint256 public constant OPEN_CAP_USD = 5_000 ether;     // 18-decimals USD
-    uint256 public constant MIGRATE_CAP_USD = 35_000 ether;
+    // Fixed virtual reserves. With these values the curve opens around
+    // ~2.8 ETH implied market cap and migrates once roughly ~8.8 ETH of
+    // real ETH has been raised (before fees) — see test/BondingCurve.t.sol
+    // for the derivation. Tune these two constants to change both numbers;
+    // they don't depend on anything else in the contract.
+    uint256 public constant VIRTUAL_ETH_RESERVE = 3 ether;
+    uint256 public constant VIRTUAL_TOKEN_RESERVE = 1_073_000_000 ether;
 
     uint16 public constant CREATOR_BPS = 3_000; // 30%
     uint16 public constant HOLDER_BPS = 4_000;  // 40%
@@ -38,9 +45,7 @@ contract BondingCurve {
     uint16 public constant BPS_DENOM = 10_000;
 
     ParcelToken public immutable token;
-    IERC20 public immutable pairCoin;      // e.g. the SHED or VILA coin
-    PriceOracle public immutable oracle;
-    string public pairTicker;              // ticker passed to the oracle, e.g. "SHED"
+    string public propertyClass; // display tag, e.g. "SHED" — not an address, not required for trading
 
     address public immutable creator;
     uint16 public immutable feeBps;        // 100–300 (1%–3%), set at creation
@@ -48,7 +53,7 @@ contract BondingCurve {
     IUniswapV4Migrator public immutable migrator;
 
     uint256 public virtualTokenReserve;
-    uint256 public virtualPairReserve;
+    uint256 public virtualEthReserve;
     uint256 public tokensSold;
     bool public migrated;
 
@@ -61,16 +66,14 @@ contract BondingCurve {
     mapping(address => uint256) private _holderFeeCheckpoint;
     mapping(address => uint256) public holderFeesOwed;
 
-    event Trade(address indexed trader, bool isBuy, uint256 pairIn, uint256 tokensOut, uint256 pairOut, uint256 tokensIn);
-    event Migrated(uint256 pairToPool, uint256 tokensToPool);
+    event Trade(address indexed trader, bool isBuy, uint256 ethIn, uint256 tokensOut, uint256 ethOut, uint256 tokensIn);
+    event Migrated(uint256 ethToPool, uint256 tokensToPool);
     event FeesClaimed(address indexed who, uint256 amount);
 
     constructor(
         string memory name_,
         string memory symbol_,
-        address pairCoin_,
-        string memory pairTicker_,
-        address oracle_,
+        string memory propertyClass_,
         address creator_,
         uint16 feeBps_,
         address protocolTreasury_,
@@ -78,105 +81,94 @@ contract BondingCurve {
     ) {
         require(feeBps_ >= 100 && feeBps_ <= 300, "BondingCurve: fee out of range");
         token = new ParcelToken(name_, symbol_, address(this));
-        pairCoin = IERC20(pairCoin_);
-        pairTicker = pairTicker_;
-        oracle = PriceOracle(oracle_);
+        propertyClass = propertyClass_;
         creator = creator_;
         feeBps = feeBps_;
         protocolTreasury = protocolTreasury_;
         migrator = IUniswapV4Migrator(migrator_);
 
-        (virtualTokenReserve, virtualPairReserve) = _deriveVirtualReserves(oracle_, pairTicker_);
+        virtualTokenReserve = VIRTUAL_TOKEN_RESERVE;
+        virtualEthReserve = VIRTUAL_ETH_RESERVE;
     }
 
-    /// @dev Solves for virtual reserves such that the curve's spot price
-    ///      starts at OPEN_CAP_USD / TOTAL_SUPPLY and, after CURVE_SUPPLY
-    ///      tokens are sold, reaches MIGRATE_CAP_USD / TOTAL_SUPPLY — using
-    ///      the standard constant-product identity x*y=k.
-    function _deriveVirtualReserves(address oracle_, string memory ticker)
-        internal
-        view
-        returns (uint256 vToken, uint256 vPair)
-    {
-        uint256 usdIndex = PriceOracle(oracle_).currentPrice(ticker); // USD per 1 pair-coin unit, 18dp
-        uint256 startPriceUsd = OPEN_CAP_USD * 1e18 / TOTAL_SUPPLY;    // USD per token, 18dp
-        uint256 endPriceUsd = MIGRATE_CAP_USD * 1e18 / TOTAL_SUPPLY;
-
-        // price in pair-coin units = price in USD / usdIndex
-        uint256 startPricePair = startPriceUsd * 1e18 / usdIndex;
-        uint256 endPricePair = endPriceUsd * 1e18 / usdIndex;
-
-        // vToken solves: endPricePair/startPricePair = (vToken / (vToken - CURVE_SUPPLY))^2
-        uint256 ratio = _sqrt(endPricePair * 1e18 / startPricePair); // 1e9-scaled sqrt of a 1e18 ratio
-        // vToken - CURVE_SUPPLY = vToken * 1e9 / ratio  =>  vToken * (ratio - 1e9) = CURVE_SUPPLY * ratio
-        vToken = (CURVE_SUPPLY * ratio) / (ratio - 1e9);
-        vPair = vToken * startPricePair / 1e18;
-    }
-
-    function _sqrt(uint256 x) internal pure returns (uint256 y) {
-        if (x == 0) return 0;
-        uint256 z = (x + 1) / 2;
-        y = x;
-        while (z < y) {
-            y = z;
-            z = (x / z + z) / 2;
-        }
-    }
-
-    /// @notice Buy tokens with `pairAmountIn` of the pair coin.
-    function buy(uint256 pairAmountIn, uint256 minTokensOut) external returns (uint256 tokensOut) {
+    /// @notice Buy tokens by sending ETH directly — no approval, no
+    ///         intermediate token. `msg.value` is the full amount including
+    ///         the trading fee, which is deducted before the curve math
+    ///         runs. If the amount sent would buy more than the curve has
+    ///         left, the purchase is capped at the remaining supply and the
+    ///         unused ETH (plus its share of the fee) is refunded in the
+    ///         same transaction rather than reverting.
+    function buy(uint256 minTokensOut) external payable returns (uint256 tokensOut) {
         require(!migrated, "BondingCurve: migrated");
-        require(pairAmountIn > 0, "BondingCurve: zero amount");
+        require(msg.value > 0, "BondingCurve: zero amount");
 
-        pairCoin.safeTransferFrom(msg.sender, address(this), pairAmountIn);
+        uint256 grossIn = msg.value;
+        uint256 fee = grossIn * feeBps / BPS_DENOM;
+        uint256 netIn = grossIn - fee;
 
-        uint256 fee = pairAmountIn * feeBps / BPS_DENOM;
-        uint256 netIn = pairAmountIn - fee;
-        _distributeFee(fee);
-
-        uint256 k = virtualTokenReserve * virtualPairReserve;
-        uint256 newPairReserve = virtualPairReserve + netIn;
-        uint256 newTokenReserve = k / newPairReserve;
+        uint256 k = virtualTokenReserve * virtualEthReserve;
+        uint256 newEthReserve = virtualEthReserve + netIn;
+        uint256 newTokenReserve = k / newEthReserve;
         tokensOut = virtualTokenReserve - newTokenReserve;
 
-        require(tokensOut >= minTokensOut, "BondingCurve: slippage");
-        require(tokensSold + tokensOut <= CURVE_SUPPLY, "BondingCurve: exceeds curve supply");
+        uint256 refund = 0;
+        if (tokensSold + tokensOut > CURVE_SUPPLY) {
+            // Cap at exactly what's left on the curve and refund the rest,
+            // inverting the same fee math to find the smaller gross amount
+            // that produces this capped netIn.
+            tokensOut = CURVE_SUPPLY - tokensSold;
+            newTokenReserve = virtualTokenReserve - tokensOut;
+            newEthReserve = k / newTokenReserve;
+            netIn = newEthReserve - virtualEthReserve;
+            fee = netIn * feeBps / (BPS_DENOM - feeBps);
+            grossIn = netIn + fee;
+            refund = msg.value - grossIn;
+        }
 
+        require(tokensOut >= minTokensOut, "BondingCurve: slippage");
+
+        _distributeFee(fee);
         virtualTokenReserve = newTokenReserve;
-        virtualPairReserve = newPairReserve;
+        virtualEthReserve = newEthReserve;
         tokensSold += tokensOut;
 
         IERC20(address(token)).safeTransfer(msg.sender, tokensOut);
-        emit Trade(msg.sender, true, pairAmountIn, tokensOut, 0, 0);
+        emit Trade(msg.sender, true, grossIn, tokensOut, 0, 0);
+
+        if (refund > 0) {
+            (bool sent, ) = msg.sender.call{value: refund}("");
+            require(sent, "BondingCurve: refund failed");
+        }
 
         if (tokensSold == CURVE_SUPPLY) {
             _migrate();
         }
     }
 
-    /// @notice Sell `tokenAmountIn` tokens back into the curve.
-    function sell(uint256 tokenAmountIn, uint256 minPairOut) external returns (uint256 pairOut) {
+    /// @notice Sell `tokenAmountIn` tokens back into the curve for ETH.
+    function sell(uint256 tokenAmountIn, uint256 minEthOut) external returns (uint256 ethOut) {
         require(!migrated, "BondingCurve: migrated");
         require(tokenAmountIn > 0, "BondingCurve: zero amount");
 
         IERC20(address(token)).safeTransferFrom(msg.sender, address(this), tokenAmountIn);
 
-        uint256 k = virtualTokenReserve * virtualPairReserve;
+        uint256 k = virtualTokenReserve * virtualEthReserve;
         uint256 newTokenReserve = virtualTokenReserve + tokenAmountIn;
-        uint256 newPairReserve = k / newTokenReserve;
-        uint256 grossOut = virtualPairReserve - newPairReserve;
+        uint256 newEthReserve = k / newTokenReserve;
+        uint256 grossOut = virtualEthReserve - newEthReserve;
 
         uint256 fee = grossOut * feeBps / BPS_DENOM;
-        pairOut = grossOut - fee;
-        require(pairOut >= minPairOut, "BondingCurve: slippage");
+        ethOut = grossOut - fee;
+        require(ethOut >= minEthOut, "BondingCurve: slippage");
 
         virtualTokenReserve = newTokenReserve;
-        virtualPairReserve = newPairReserve;
+        virtualEthReserve = newEthReserve;
         tokensSold -= tokenAmountIn;
 
         _distributeFee(fee);
-        pairCoin.safeTransfer(msg.sender, pairOut);
-        emit Trade(msg.sender, false, 0, 0, pairOut, tokenAmountIn);
+        (bool sent, ) = msg.sender.call{value: ethOut}("");
+        require(sent, "BondingCurve: ETH transfer failed");
+        emit Trade(msg.sender, false, 0, 0, ethOut, tokenAmountIn);
     }
 
     function _distributeFee(uint256 fee) internal {
@@ -206,7 +198,8 @@ contract BondingCurve {
         _holderFeeCheckpoint[msg.sender] = holderFeePerShare;
         holderFeesOwed[msg.sender] = 0;
         if (owed > 0) {
-            pairCoin.safeTransfer(msg.sender, owed);
+            (bool sent, ) = msg.sender.call{value: owed}("");
+            require(sent, "BondingCurve: ETH transfer failed");
             emit FeesClaimed(msg.sender, owed);
         }
         return owed;
@@ -233,7 +226,8 @@ contract BondingCurve {
         uint256 amount = creatorFeesOwed;
         creatorFeesOwed = 0;
         if (amount > 0) {
-            pairCoin.safeTransfer(creator, amount);
+            (bool sent, ) = creator.call{value: amount}("");
+            require(sent, "BondingCurve: ETH transfer failed");
             emit FeesClaimed(creator, amount);
         }
     }
@@ -242,17 +236,17 @@ contract BondingCurve {
         uint256 amount = protocolFeesOwed;
         protocolFeesOwed = 0;
         if (amount > 0) {
-            pairCoin.safeTransfer(protocolTreasury, amount);
+            (bool sent, ) = protocolTreasury.call{value: amount}("");
+            require(sent, "BondingCurve: ETH transfer failed");
             emit FeesClaimed(protocolTreasury, amount);
         }
     }
 
     function _migrate() internal {
         migrated = true;
-        uint256 pairBalance = pairCoin.balanceOf(address(this)) - creatorFeesOwed - protocolFeesOwed;
+        uint256 ethBalance = address(this).balance - creatorFeesOwed - protocolFeesOwed;
         IERC20(address(token)).safeIncreaseAllowance(address(migrator), RESERVE_SUPPLY);
-        pairCoin.safeIncreaseAllowance(address(migrator), pairBalance);
-        migrator.createAndSeedPool(address(token), address(pairCoin), pairBalance, RESERVE_SUPPLY, feeBps);
-        emit Migrated(pairBalance, RESERVE_SUPPLY);
+        migrator.createAndSeedPool{value: ethBalance}(address(token), RESERVE_SUPPLY, feeBps);
+        emit Migrated(ethBalance, RESERVE_SUPPLY);
     }
 }
