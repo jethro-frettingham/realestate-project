@@ -4,21 +4,27 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./ParcelToken.sol";
+import "./PropertyClassCoin.sol";
 import "./interfaces/IUniswapV4Migrator.sol";
 
 /// @title BondingCurve
 /// @notice One curve per launch. Holds the full 1,000,000,000 ParcelToken
 ///         supply, sells 800,000,000 of it directly against ETH on a virtual
-///         constant-product curve, and migrates the remaining 200,000,000
-///         tokens plus all ETH raised into a Uniswap v4 pool once the curve
-///         sells out. `propertyClass` (e.g. "SHED", "VILA") is a plain
-///         string tag — it labels what the launch is tethered to for
-///         display purposes, but nothing about buying or selling requires
-///         holding, minting, or approving any other token.
+///         constant-product curve — buying and selling always happens in
+///         plain ETH, whether or not a property class was picked at
+///         creation. `pairCoin` (e.g. SHED, HOUS) only changes what happens
+///         at migration.
 ///
-///         No holder-reward accounting: every fee splits between the
-///         creator, the $PARCEL buyback treasury, and the protocol
-///         treasury. There's nothing to claim as a holder.
+///         No class picked (`pairCoin == address(0)`): sellout migrates
+///         the full 200,000,000 reserved tokens and all raised ETH into a
+///         single TOKEN/ETH pool.
+///
+///         Class picked: sellout migrates into *two* pools — half the
+///         reserved tokens and half the raised ETH into a TOKEN/ETH pool,
+///         and the other half of each into a TOKEN/<class coin> pool (the
+///         ETH going into that pool is minted into the class coin first,
+///         at its fixed peg rate, so the pool is genuinely backed by the
+///         class coin rather than a relabeled ETH balance).
 /// @dev Reference implementation for the Parcel demo. Unaudited — this has
 ///      not been reviewed for reentrancy or rounding exploits and should
 ///      not hold real funds as-is.
@@ -27,27 +33,27 @@ contract BondingCurve {
 
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether;
     uint256 public constant CURVE_SUPPLY = 800_000_000 ether;
-    uint256 public constant RESERVE_SUPPLY = 200_000_000 ether; // moves to the v4 pool at migration
+    uint256 public constant RESERVE_SUPPLY = 200_000_000 ether; // moves to pool(s) at migration
 
     // Fixed virtual reserves. With these values the curve opens around
     // ~2.8 ETH implied market cap and migrates once roughly ~8.8 ETH of
     // real ETH has been raised (before fees) — see test/BondingCurve.t.sol
     // for the derivation. Tune these two constants to change both numbers;
-    // they don't depend on anything else in the contract.
+    // they don't depend on anything else in the contract, including
+    // whether a class is picked.
     uint256 public constant VIRTUAL_ETH_RESERVE = 3 ether;
     uint256 public constant VIRTUAL_TOKEN_RESERVE = 1_073_000_000 ether;
 
-    uint16 public constant CREATOR_BPS = 4_000; // 40%
-    uint16 public constant BUYBACK_BPS = 3_000; // 30% — swept toward $PARCEL buyback
+    uint16 public constant CREATOR_BPS = 7_000; // 70%
     uint16 public constant PROTOCOL_BPS = 3_000; // 30%
     uint16 public constant BPS_DENOM = 10_000;
 
     ParcelToken public immutable token;
-    string public propertyClass; // display tag, e.g. "SHED" — not an address, not required for trading
+    PropertyClassCoin public immutable pairCoin; // address(0) if no class was picked
+    string public propertyClass; // display tag mirrored from pairCoin.classTicker(), or "" if none
 
     address public immutable creator;
     uint16 public immutable feeBps;        // 100–300 (1%–3%), set at creation
-    address public immutable buybackTreasury;
     address public immutable protocolTreasury;
     IUniswapV4Migrator public immutable migrator;
 
@@ -57,29 +63,27 @@ contract BondingCurve {
     bool public migrated;
 
     uint256 public creatorFeesOwed;
-    uint256 public buybackFeesOwed;
     uint256 public protocolFeesOwed;
 
     event Trade(address indexed trader, bool isBuy, uint256 ethIn, uint256 tokensOut, uint256 ethOut, uint256 tokensIn);
-    event Migrated(uint256 ethToPool, uint256 tokensToPool);
+    event Migrated(address indexed quoteAsset, uint256 quoteAmount, uint256 tokenAmount);
     event FeesClaimed(address indexed who, uint256 amount);
 
     constructor(
         string memory name_,
         string memory symbol_,
-        string memory propertyClass_,
+        address pairCoin_, // address(0) = no class, single-pool migration
         address creator_,
         uint16 feeBps_,
-        address buybackTreasury_,
         address protocolTreasury_,
         address migrator_
     ) {
         require(feeBps_ >= 100 && feeBps_ <= 300, "BondingCurve: fee out of range");
         token = new ParcelToken(name_, symbol_, address(this));
-        propertyClass = propertyClass_;
+        pairCoin = PropertyClassCoin(pairCoin_);
+        propertyClass = pairCoin_ == address(0) ? "" : PropertyClassCoin(pairCoin_).classTicker();
         creator = creator_;
         feeBps = feeBps_;
-        buybackTreasury = buybackTreasury_;
         protocolTreasury = protocolTreasury_;
         migrator = IUniswapV4Migrator(migrator_);
 
@@ -88,12 +92,12 @@ contract BondingCurve {
     }
 
     /// @notice Buy tokens by sending ETH directly — no approval, no
-    ///         intermediate token. `msg.value` is the full amount including
-    ///         the trading fee, which is deducted before the curve math
-    ///         runs. If the amount sent would buy more than the curve has
-    ///         left, the purchase is capped at the remaining supply and the
-    ///         unused ETH (plus its share of the fee) is refunded in the
-    ///         same transaction rather than reverting.
+    ///         intermediate token, regardless of whether a class is picked.
+    ///         `msg.value` is the full amount including the trading fee,
+    ///         which is deducted before the curve math runs. If the amount
+    ///         sent would buy more than the curve has left, the purchase is
+    ///         automatically capped at the remaining supply and the unused
+    ///         ETH is refunded in the same transaction rather than reverting.
     function buy(uint256 minTokensOut) external payable returns (uint256 tokensOut) {
         require(!migrated, "BondingCurve: migrated");
         require(msg.value > 0, "BondingCurve: zero amount");
@@ -169,11 +173,8 @@ contract BondingCurve {
 
     function _distributeFee(uint256 fee) internal {
         uint256 creatorCut = fee * CREATOR_BPS / BPS_DENOM;
-        uint256 buybackCut = fee * BUYBACK_BPS / BPS_DENOM;
-        uint256 protocolCut = fee - creatorCut - buybackCut; // remainder avoids rounding dust loss
-
+        uint256 protocolCut = fee - creatorCut; // remainder avoids rounding dust loss
         creatorFeesOwed += creatorCut;
-        buybackFeesOwed += buybackCut;
         protocolFeesOwed += protocolCut;
     }
 
@@ -188,18 +189,6 @@ contract BondingCurve {
         }
     }
 
-    /// @notice Anyone can trigger a sweep — funds always go to the fixed
-    ///         buyback treasury address, never to the caller.
-    function sweepBuybackFees() external {
-        uint256 amount = buybackFeesOwed;
-        buybackFeesOwed = 0;
-        if (amount > 0) {
-            (bool sent, ) = buybackTreasury.call{value: amount}("");
-            require(sent, "BondingCurve: ETH transfer failed");
-            emit FeesClaimed(buybackTreasury, amount);
-        }
-    }
-
     function claimProtocolFees() external {
         uint256 amount = protocolFeesOwed;
         protocolFeesOwed = 0;
@@ -210,11 +199,34 @@ contract BondingCurve {
         }
     }
 
+    /// @dev No class: one TOKEN/ETH pool gets everything. Class picked:
+    ///      split down the middle — half stays plain ETH, half gets minted
+    ///      into the class coin (at its fixed peg, using real ETH) before
+    ///      seeding a second, genuinely class-coin-backed pool.
     function _migrate() internal {
         migrated = true;
-        uint256 ethBalance = address(this).balance - creatorFeesOwed - buybackFeesOwed - protocolFeesOwed;
-        IERC20(address(token)).safeIncreaseAllowance(address(migrator), RESERVE_SUPPLY);
-        migrator.createAndSeedPool{value: ethBalance}(address(token), RESERVE_SUPPLY, feeBps);
-        emit Migrated(ethBalance, RESERVE_SUPPLY);
+        uint256 ethBalance = address(this).balance - creatorFeesOwed - protocolFeesOwed;
+
+        if (address(pairCoin) == address(0)) {
+            IERC20(address(token)).safeIncreaseAllowance(address(migrator), RESERVE_SUPPLY);
+            migrator.createAndSeedPool{value: ethBalance}(address(token), address(0), 0, RESERVE_SUPPLY, feeBps);
+            emit Migrated(address(0), ethBalance, RESERVE_SUPPLY);
+            return;
+        }
+
+        uint256 ethForEthPool = ethBalance / 2;
+        uint256 ethForClassPool = ethBalance - ethForEthPool;
+        uint256 tokensForEthPool = RESERVE_SUPPLY / 2;
+        uint256 tokensForClassPool = RESERVE_SUPPLY - tokensForEthPool;
+
+        IERC20(address(token)).safeIncreaseAllowance(address(migrator), tokensForEthPool);
+        migrator.createAndSeedPool{value: ethForEthPool}(address(token), address(0), 0, tokensForEthPool, feeBps);
+        emit Migrated(address(0), ethForEthPool, tokensForEthPool);
+
+        uint256 classCoinAmount = pairCoin.mint{value: ethForClassPool}(0);
+        IERC20(address(token)).safeIncreaseAllowance(address(migrator), tokensForClassPool);
+        IERC20(address(pairCoin)).safeIncreaseAllowance(address(migrator), classCoinAmount);
+        migrator.createAndSeedPool(address(token), address(pairCoin), classCoinAmount, tokensForClassPool, feeBps);
+        emit Migrated(address(pairCoin), classCoinAmount, tokensForClassPool);
     }
 }
