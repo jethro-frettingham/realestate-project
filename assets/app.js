@@ -22,8 +22,40 @@ const RH_CHAIN = {
 
 // Minimal ABI fragments — just what the site calls.
 const FACTORY_ABI = [
-  "function createLaunch(string name_, string symbol_, string propertyClass_, uint16 feeBps, string metadataURI, uint256 minTokensOut) payable returns (uint256 launchId, address curveAddr)",
-  "event LaunchCreated(uint256 indexed launchId, address indexed creator, address curve, address token, string propertyClass, uint16 feeBps, string metadataURI)",
+  "function createLaunch(string name_, string symbol_, address pairCoin_, uint16 feeBps, string metadataURI, uint256 minTokensOut) payable returns (uint256 launchId, address curveAddr)",
+  "function launchCount() view returns (uint256)",
+  "function launches(uint256) view returns (address curve, address token, address pairCoin, string propertyClass, address creator, string metadataURI, uint64 createdAt)",
+  "event LaunchCreated(uint256 indexed launchId, address indexed creator, address curve, address token, address pairCoin, string propertyClass, uint16 feeBps, string metadataURI)",
+];
+const CURVE_ABI = [
+  "function buy(uint256 minTokensOut) payable returns (uint256 tokensOut)",
+  "function sell(uint256 tokenAmountIn, uint256 minEthOut) returns (uint256 ethOut)",
+  "function token() view returns (address)",
+  "function pairCoin() view returns (address)",
+  "function propertyClass() view returns (string)",
+  "function creator() view returns (address)",
+  "function feeBps() view returns (uint16)",
+  "function tokensSold() view returns (uint256)",
+  "function migrated() view returns (bool)",
+  "function CURVE_SUPPLY() view returns (uint256)",
+  "function TOTAL_SUPPLY() view returns (uint256)",
+  "function virtualEthReserve() view returns (uint256)",
+  "function virtualTokenReserve() view returns (uint256)",
+  "event Trade(address indexed trader, bool isBuy, uint256 ethIn, uint256 tokensOut, uint256 ethOut, uint256 tokensIn)",
+];
+const TOKEN_ABI = [
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "function balanceOf(address) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+];
+const PROPERTY_COIN_ABI = [
+  "function mint(uint256 minCoinOut) payable returns (uint256 coinOut)",
+  "function redeem(uint256 coinIn, uint256 minEthOut) returns (uint256 ethOut)",
+  "function weiPerUnit() view returns (uint256)",
+  "function classTicker() view returns (string)",
+  "function balanceOf(address) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
 ];
 
 /* ---------------------------------------------------------------------- */
@@ -109,13 +141,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
 /**
  * Submits a launch to the deployed ParcelFactory. Requires ethers v6 to
- * be loaded on the page (launch.html includes it via CDN) and a
- * deployment to exist. One transaction, ETH-native — no approval step,
- * no pair coin, nothing to mint first.
+ * be loaded on the page and a deployment to exist. One transaction,
+ * ETH-native — no approval step. `pairCoinAddress` is optional: pass a
+ * PropertyClassCoin address to pick a class (migration seeds two pools),
+ * or omit/pass null for no class (single ETH pool at migration).
  *
  * @returns {Promise<{launchId: string, curve: string, token: string, txHash: string}>}
  */
-async function submitLaunch({ name, symbol, propertyClass, feeBps, metadataURI, firstBuyIn }) {
+async function submitLaunch({ name, symbol, pairCoinAddress, feeBps, metadataURI, firstBuyIn }) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet — see DEPLOY.md to deploy the contracts first.");
@@ -125,7 +158,8 @@ async function submitLaunch({ name, symbol, propertyClass, feeBps, metadataURI, 
   const signer = await provider.getSigner();
   const factory = new ethers.Contract(deployment.factory, FACTORY_ABI, signer);
 
-  const tx = await factory.createLaunch(name, symbol, propertyClass, feeBps, metadataURI, 0n, { value: firstBuyIn });
+  const pairCoin = pairCoinAddress || ethers.ZeroAddress;
+  const tx = await factory.createLaunch(name, symbol, pairCoin, feeBps, metadataURI, 0n, { value: firstBuyIn });
   const receipt = await tx.wait();
 
   const iface = new ethers.Interface(FACTORY_ABI);
@@ -142,6 +176,152 @@ async function submitLaunch({ name, symbol, propertyClass, feeBps, metadataURI, 
   }
 
   return { launchId, curve, token, txHash: receipt.hash };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Property-class coins — buy/sell against ETH at the fixed rate          */
+/* ---------------------------------------------------------------------- */
+
+/** Mint a property-class coin (or USDG) by sending ETH, at its fixed rate. */
+async function mintPropertyCoin(coinAddress, ethIn) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, signer);
+  const tx = await coin.mint(0n, { value: ethIn });
+  const receipt = await tx.wait();
+  return { txHash: receipt.hash };
+}
+
+/** Redeem a property-class coin (or USDG) back to ETH, at its fixed rate. */
+async function redeemPropertyCoin(coinAddress, coinIn) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, signer);
+  const tx = await coin.redeem(coinIn, 0n);
+  const receipt = await tx.wait();
+  return { txHash: receipt.hash };
+}
+
+/** Read-only: a property coin's fixed rate and (if a wallet is connected)
+ *  the caller's balance of it. Uses the public RPC — no wallet required
+ *  just to read the rate. */
+async function readPropertyCoin(coinAddress, account) {
+  const deployment = await loadDeployment();
+  const provider = typeof ethers !== "undefined" && deployment
+    ? new ethers.JsonRpcProvider(deployment.rpcUrl)
+    : null;
+  if (!provider) return null;
+  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, provider);
+  const weiPerUnit = await coin.weiPerUnit();
+  const balance = account ? await coin.balanceOf(account) : 0n;
+  return { weiPerUnit, balance };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Reading live launches + a single market's state, straight from chain   */
+/* ---------------------------------------------------------------------- */
+
+/** Every launch ever created, read directly from ParcelFactory's on-chain
+ *  array — no indexer. Returns [] if nothing's deployed yet. */
+async function fetchAllLaunches() {
+  const deployment = await loadDeployment();
+  if (!deployment || typeof ethers === "undefined") return [];
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const factory = new ethers.Contract(deployment.factory, FACTORY_ABI, provider);
+  const count = Number(await factory.launchCount());
+  const launches = [];
+  for (let i = 0; i < count; i++) {
+    const l = await factory.launches(i);
+    launches.push({
+      curve: l.curve, token: l.token, pairCoin: l.pairCoin,
+      propertyClass: l.propertyClass, creator: l.creator,
+      metadataURI: l.metadataURI, createdAt: Number(l.createdAt),
+    });
+  }
+  return launches.reverse(); // newest first
+}
+
+/** Full live state for one market's curve, plus its token's name/symbol —
+ *  everything a trading page needs, all view calls. */
+async function fetchCurveState(curveAddress) {
+  const deployment = await loadDeployment();
+  if (!deployment || typeof ethers === "undefined") return null;
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const curve = new ethers.Contract(curveAddress, CURVE_ABI, provider);
+  const tokenAddr = await curve.token();
+  const token = new ethers.Contract(tokenAddr, TOKEN_ABI, provider);
+
+  const [name, symbol, pairCoin, propertyClass, creator, feeBps, tokensSold, migrated, curveSupply, totalSupply, virtualEth, virtualToken] =
+    await Promise.all([
+      token.name(), token.symbol(), curve.pairCoin(), curve.propertyClass(), curve.creator(),
+      curve.feeBps(), curve.tokensSold(), curve.migrated(), curve.CURVE_SUPPLY(), curve.TOTAL_SUPPLY(),
+      curve.virtualEthReserve(), curve.virtualTokenReserve(),
+    ]);
+
+  return {
+    tokenAddr, name, symbol, pairCoin, propertyClass, creator,
+    feeBps: Number(feeBps), tokensSold, migrated, curveSupply, totalSupply,
+    virtualEth, virtualToken,
+  };
+}
+
+/** Recent Trade events for one curve, straight from chain logs — this is
+ *  a trade list, not a price chart (no candles/OHLC aggregation here). */
+async function fetchRecentTrades(curveAddress, maxResults = 50) {
+  const deployment = await loadDeployment();
+  if (!deployment || typeof ethers === "undefined") return [];
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const curve = new ethers.Contract(curveAddress, CURVE_ABI, provider);
+  const events = await curve.queryFilter(curve.filters.Trade(), 0, "latest");
+  return events.slice(-maxResults).reverse().map((e) => ({
+    trader: e.args.trader, isBuy: e.args.isBuy,
+    ethIn: e.args.ethIn, tokensOut: e.args.tokensOut,
+    ethOut: e.args.ethOut, tokensIn: e.args.tokensIn,
+    txHash: e.transactionHash,
+  }));
+}
+
+/** Buy on an existing curve — same shape as a launch's first buy. */
+async function buyOnCurve(curveAddress, ethIn) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
+  const tx = await curve.buy(0n, { value: ethIn });
+  const receipt = await tx.wait();
+  return { txHash: receipt.hash };
+}
+
+/** Sell on an existing curve. Needs one approval the first time (the
+ *  curve pulls the launch token via transferFrom), then sells. */
+async function sellOnCurve(curveAddress, tokenAddress, tokenAmountIn) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const account = await signer.getAddress();
+  const token = new ethers.Contract(tokenAddress, TOKEN_ABI, signer);
+  const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
+
+  // ERC20 allowance isn't in TOKEN_ABI's minimal set — check via a raw call.
+  const allowanceIface = new ethers.Interface(["function allowance(address,address) view returns (uint256)"]);
+  const data = allowanceIface.encodeFunctionData("allowance", [account, curveAddress]);
+  const raw = await provider.call({ to: tokenAddress, data });
+  const [allowance] = allowanceIface.decodeFunctionResult("allowance", raw);
+
+  if (allowance < tokenAmountIn) {
+    const approveTx = await token.approve(curveAddress, tokenAmountIn);
+    await approveTx.wait();
+  }
+
+  const tx = await curve.sell(tokenAmountIn, 0n);
+  const receipt = await tx.wait();
+  return { txHash: receipt.hash };
 }
 
 /* ---------------------------------------------------------------------- */
@@ -307,4 +487,6 @@ function quoteBuy(ethIn, tokensSoldSoFar) {
 window.Parcel = {
   parcelGlyph, renderClassTile, virtualReserves, quoteBuy, CURVE,
   connectWallet, loadDeployment, submitLaunch, ensureRobinhoodTestnet, RH_CHAIN,
+  mintPropertyCoin, redeemPropertyCoin, readPropertyCoin,
+  fetchAllLaunches, fetchCurveState, fetchRecentTrades, buyOnCurve, sellOnCurve,
 };
