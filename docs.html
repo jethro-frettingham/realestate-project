@@ -19,7 +19,7 @@
         <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
         <circle cx="19" cy="19" r="3.4"/>
       </svg>
-      <span>Parcel<span class="sub">launched on Robinhood Chain</span></span>
+      <span>Parcel<span class="sub">on Robinhood Chain Testnet</span></span>
     </a>
     <nav class="primary">
       <a href="index.html">Markets</a>
@@ -28,7 +28,7 @@
       <a href="docs.html" aria-current="page">How it works</a>
     </nav>
     <div style="display:flex; align-items:center; gap:12px;">
-      <span class="chain-tag">Robinhood Chain · demo</span>
+      <span class="chain-tag">Robinhood Chain Testnet</span>
       <button class="btn-connect" data-connect>Connect wallet</button>
     </div>
   </div>
@@ -45,6 +45,16 @@
         high-rise unit. The mechanics below are identical no matter which class
         a launch picks.
       </p>
+    </div>
+  </section>
+
+  <section class="section" id="deployment">
+    <div class="wrap">
+      <h2>Testnet deployment</h2>
+      <p>Live addresses for the current deployment on Robinhood Chain Testnet (chain ID 46630), read straight from <code>deployments/testnet.json</code> — this updates automatically the next time someone redeploys.</p>
+      <div class="spec" id="deployment-panel" style="max-width:640px;">
+        <div class="spec-row"><span class="k">Status</span><span class="v" id="dep-status">Checking…</span></div>
+      </div>
     </div>
   </section>
 
@@ -151,10 +161,14 @@
   <section class="section" style="border-bottom:none;">
     <div class="wrap">
       <h2>What this repo doesn't do yet</h2>
-      <p>This is a working front end over a reference contract set, not a live deployment. Specifically:</p>
+      <p>The contracts can be deployed for real to Robinhood Chain Testnet (see <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>) and this site will pick that up automatically. Even deployed, some things are still simplified:</p>
       <ul style="color:var(--paper-dim); max-width:64ch;">
-        <li>The contracts in <code>/contracts</code> are unaudited and not deployed anywhere — <code>FACTORY_ADDRESS</code> in <code>assets/app.js</code> is a placeholder.</li>
-        <li><code>PriceOracle.sol</code> takes reporter-submitted prices; it doesn't ship a real data pipeline to Zillow, Redfin, county records, or any other source.</li>
+        <li>The contracts are unaudited reference code — testnet only. Nothing here should hold mainnet funds as-is.</li>
+        <li>A launch's first buy has to be paid directly in the pair coin on testnet — there's no in-contract swap from ETH or USDG yet, unlike the docs' description of the intended mainnet behavior.</li>
+        <li>There's no real Uniswap v4 pool behind migration on testnet — <code>TestnetMigrator</code> just holds the raised coin and reserved tokens so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it.</li>
+        <li><code>PriceOracle.sol</code> takes reporter-submitted prices; it doesn't ship a real data pipeline to Zillow, Redfin, county records, or any other source. The testnet deployment seeds each class with a single placeholder price.</li>
+        <li>Market images and descriptions aren't pinned to IPFS — the launch form encodes them into an inline data URI, which is fine for a demo and not for anything meant to last.</li>
+        <li>There's no markets index — <code>index.html</code> shows the static class list, not live launches. Finding a specific market means reading <code>LaunchCreated</code> events or checking the explorer directly.</li>
         <li>Nothing here evaluates whether tokenizing a specific physical property makes the resulting coin a security, a real-estate-adjacent financial product, or something requiring registration in your jurisdiction. That's a legal question, not a code path — talk to a lawyer before this touches real money or real property titles.</li>
       </ul>
     </div>
@@ -171,5 +185,22 @@
 
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
+<script>
+  Parcel.loadDeployment().then((d) => {
+    const panel = document.getElementById("deployment-panel");
+    if (!d) {
+      document.getElementById("dep-status").textContent = "Not deployed yet — see DEPLOY.md";
+      return;
+    }
+    const row = (k, v, link) => `<div class="spec-row"><span class="k">${k}</span><span class="v brass">${link ? `<a href="${link}" target="_blank" rel="noopener" style="color:inherit;">${v}</a>` : v}</span></div>`;
+    panel.innerHTML =
+      row("Status", "Live") +
+      row("Chain ID", "46630 (testnet)") +
+      row("ParcelFactory", d.factory.slice(0, 10) + "…" + d.factory.slice(-6), d.explorer + "/address/" + d.factory) +
+      row("PriceOracle", d.oracle.slice(0, 10) + "…" + d.oracle.slice(-6), d.explorer + "/address/" + d.oracle) +
+      row("MockUSDG", d.usdg.slice(0, 10) + "…" + d.usdg.slice(-6), d.explorer + "/address/" + d.usdg) +
+      row("Property-class coins deployed", Object.keys(d.classCoins).length + " / " + PROPERTY_CLASSES.length);
+  });
+</script>
 </body>
 </html>

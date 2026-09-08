@@ -19,7 +19,7 @@
         <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
         <circle cx="19" cy="19" r="3.4"/>
       </svg>
-      <span>Parcel<span class="sub">launched on Robinhood Chain</span></span>
+      <span>Parcel<span class="sub">on Robinhood Chain Testnet</span></span>
     </a>
     <nav class="primary">
       <a href="index.html">Markets</a>
@@ -28,7 +28,7 @@
       <a href="docs.html">How it works</a>
     </nav>
     <div style="display:flex; align-items:center; gap:12px;">
-      <span class="chain-tag">Robinhood Chain · demo</span>
+      <span class="chain-tag">Robinhood Chain Testnet</span>
       <button class="btn-connect" data-connect>Connect wallet</button>
     </div>
   </div>
@@ -107,7 +107,7 @@
                 <option id="pair-currency-option">SHED</option>
               </select>
             </div>
-            <p class="hint">At least $1. ETH and USDG are swapped to your pair coin and bought into your market in the same transaction.</p>
+            <p class="hint" id="buy-hint">At least $1. ETH and USDG are swapped to your pair coin and bought into your market in the same transaction.</p>
           </div>
 
         </div>
@@ -126,15 +126,13 @@
             <div class="spec-row"><span class="k">You receive</span><span class="v" id="ov-receive">—</span></div>
           </div>
 
-          <div class="disclosure">
-            <strong>Demo only.</strong> This form doesn't submit a transaction yet — wire
-            <code>FACTORY_ADDRESS</code> in <code>assets/app.js</code> to a deployed
-            <code>ParcelFactory</code> (see <code>/contracts</code>) to make it real.
-            Tokenizing a specific physical property may make the resulting coin a security
-            in your jurisdiction; that's a legal question for a lawyer, not a setting in this repo.
+          <div class="disclosure" id="mode-disclosure">
+            Checking for a live deployment…
           </div>
 
-          <button type="button" class="btn-connect" data-connect style="width:100%; margin-top:16px;">Connect wallet to launch</button>
+          <div id="tx-status" style="display:none; margin-top:12px; font-size:12.5px; font-family:var(--font-mono);"></div>
+
+          <button type="button" class="btn-connect" id="action-btn" style="width:100%; margin-top:16px;">Connect wallet to launch</button>
         </aside>
       </form>
     </div>
@@ -143,11 +141,12 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — a demo launchpad. Unaudited contracts, no live deployment yet.</span>
+    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts — see <a href="DEPLOY.md">DEPLOY.md</a>.</span>
     <span><a href="docs.html">How it works</a> · <a href="classes.html">Property classes</a></span>
   </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
 <script>
@@ -158,12 +157,54 @@
 
   let selectedClass = PROPERTY_CLASSES[0];
   let selectedFee = 2;
+  let deployment = null; // filled in once loadDeployment() resolves
+
+  const actionBtn = document.getElementById("action-btn");
+  const statusEl = document.getElementById("tx-status");
+  let walletConnected = false;
+
+  function setStatus(msg, isError) {
+    statusEl.style.display = msg ? "block" : "none";
+    statusEl.textContent = msg || "";
+    statusEl.style.color = isError ? "var(--flag)" : "var(--brass-bright)";
+  }
+
+  async function refreshMode() {
+    deployment = await Parcel.loadDeployment();
+    const disclosure = document.getElementById("mode-disclosure");
+    const currencySelect = document.getElementById("buy-currency");
+    const ethOpt = currencySelect.options[0];
+    const usdgOpt = currencySelect.options[1];
+
+    if (deployment) {
+      disclosure.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong>
+        This submits a real <code>createLaunch</code> transaction to
+        <a href="${deployment.explorer}/address/${deployment.factory}" target="_blank" rel="noopener" style="color:var(--brass-bright);">
+        the deployed ParcelFactory</a>. Get testnet ETH and pair-coin balance first — see
+        <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>.
+        Tokenizing a specific physical property may make the resulting coin a security in your
+        jurisdiction — that's a legal question for a lawyer, not a setting in this repo.`;
+      // The contract takes the pair coin directly (no in-contract ETH/USDG
+      // swap yet) — restrict the currency choice to what will actually work.
+      ethOpt.disabled = true;
+      usdgOpt.disabled = true;
+      currencySelect.value = document.getElementById("pair-currency-option").textContent;
+      document.getElementById("buy-hint").textContent =
+        "Paid directly in the pair coin on testnet — mint some via the coin's mint() first (see DEPLOY.md).";
+    } else {
+      disclosure.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet at
+        <code>deployments/testnet.json</code>. The terms below are real bonding-curve math, but
+        "Launch" won't submit a transaction until the contracts are deployed — see
+        <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>.`;
+    }
+  }
 
   function updateOverview() {
     document.getElementById("ov-pair").textContent = selectedClass.ticker;
     document.getElementById("panel-sub").textContent = selectedClass.label + " — " + selectedClass.unit;
     document.getElementById("pair-currency-option").textContent = selectedClass.ticker;
     document.getElementById("ov-fee").textContent = selectedFee + "%";
+    if (deployment) document.getElementById("buy-currency").value = selectedClass.ticker;
     recalcReceive();
   }
 
@@ -202,16 +243,80 @@
       document.getElementById("ov-receive").textContent = "—";
       return;
     }
-    // Demo estimate only: treats the buy amount as pair-coin-equivalent.
+    // Estimate only, using the curve's own math at zero tokens sold.
     const tokensOut = Parcel.quoteBuy(amt, 0);
-    document.getElementById("ov-receive").textContent = Math.round(tokensOut).toLocaleString() + " " + document.getElementById("ticker").value.toUpperCase().slice(0,12) || "tokens";
+    const tickerText = document.getElementById("ticker").value.toUpperCase().slice(0, 12) || "tokens";
+    document.getElementById("ov-receive").textContent = Math.round(tokensOut).toLocaleString() + " " + tickerText;
   }
 
   document.getElementById("first-buy").addEventListener("input", recalcReceive);
   document.getElementById("buy-currency").addEventListener("change", recalcReceive);
   document.getElementById("ticker").addEventListener("input", recalcReceive);
 
-  updateOverview();
+  // Metadata storage isn't wired to IPFS in this demo — bundle the form's
+  // text fields into a small inline data URI instead. The uploaded image
+  // itself isn't persisted anywhere on testnet; swap this for a real
+  // upload (e.g. to IPFS via a pinning service) before this matters for
+  // anything beyond a demo.
+  function buildMetadataURI() {
+    const meta = {
+      name: document.getElementById("name").value,
+      ticker: document.getElementById("ticker").value.toUpperCase(),
+      website: document.getElementById("website").value || null,
+      x: document.getElementById("x").value || null,
+      telegram: document.getElementById("telegram").value || null,
+      description: document.getElementById("description").value || null,
+      note: "testnet demo metadata — not pinned to IPFS",
+    };
+    return "data:application/json;base64," + btoa(JSON.stringify(meta));
+  }
+
+  actionBtn.addEventListener("click", async () => {
+    if (!walletConnected) {
+      await Parcel.connectWallet();
+      return; // require a second click to actually submit, so people can see the connected state first
+    }
+
+    if (!deployment) {
+      setStatus("No live deployment yet — see DEPLOY.md.", true);
+      return;
+    }
+    const name = document.getElementById("name").value.trim();
+    const symbol = document.getElementById("ticker").value.trim().toUpperCase();
+    const amountStr = document.getElementById("first-buy").value.trim();
+    if (!name || !symbol) { setStatus("Name and ticker are required.", true); return; }
+    if (!amountStr || parseFloat(amountStr) <= 0) { setStatus("Enter a first-buy amount.", true); return; }
+
+    const pairCoinAddress = deployment.classCoins[selectedClass.ticker];
+    if (!pairCoinAddress) { setStatus(selectedClass.ticker + " has no deployed coin.", true); return; }
+
+    actionBtn.disabled = true;
+    try {
+      setStatus("Approving " + selectedClass.ticker + "…");
+      const firstBuyIn = ethers.parseUnits(amountStr, 18);
+      const result = await Parcel.submitLaunch({
+        name, symbol,
+        pairCoinAddress,
+        pairTicker: selectedClass.ticker,
+        feeBps: selectedFee * 100,
+        metadataURI: buildMetadataURI(),
+        firstBuyIn,
+      });
+      setStatus("Launched. Token: " + result.token + " — view tx: " + deployment.explorer + "/tx/" + result.txHash);
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || String(err), true);
+    } finally {
+      actionBtn.disabled = false;
+    }
+  });
+
+  document.addEventListener("parcel:connected", () => {
+    walletConnected = true;
+    actionBtn.textContent = deployment ? "Launch" : "Preview only — no deployment yet";
+  });
+
+  refreshMode().then(updateOverview);
 </script>
 </body>
 </html>
