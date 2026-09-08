@@ -4,11 +4,12 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title PriceOracle
-/// @notice Holds a USD index price (18 decimals) per property class, e.g.
-///         SHED, VILA, HOUS. Real estate has no continuous exchange feed
-///         the way commodities do, so the index is a rolling value that
-///         approved reporters push on-chain, rather than something read
-///         from a futures market.
+/// @notice Optional, currently unused by BondingCurve/ParcelFactory. Holds a
+///         USD index price (18 decimals) per property class, e.g. SHED,
+///         VILA, HOUS, for classes that want a "worth roughly N sheds"
+///         style display. Kept as a separate piece deliberately — nothing
+///         about launching or trading a token depends on this being
+///         deployed, seeded, or fresh.
 ///
 ///         This is a minimal reference oracle for the demo, not a
 ///         production data pipeline:

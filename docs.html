@@ -40,10 +40,10 @@
       <span class="eyebrow-tag">Docs</span>
       <h1 style="margin-top:16px;">How it works</h1>
       <p class="lede">
-        Parcel is a launchpad on Robinhood Chain. Every market is paired with a
-        property-class coin instead of a stablecoin — a shed, a couch, a villa, a
-        high-rise unit. The mechanics below are identical no matter which class
-        a launch picks.
+        Parcel is a launchpad on Robinhood Chain. Every launch is tethered to a property
+        class for flavor — a shed, a couch, a villa, a high-rise unit — but trading itself
+        is always plain ETH. Connect a wallet, send ETH, get tokens. Nothing to mint or
+        approve first, for the creator or for anyone buying after them.
       </p>
     </div>
   </section>
@@ -60,23 +60,20 @@
 
   <section class="section" id="coins">
     <div class="wrap">
-      <h2>Property-class coins</h2>
+      <h2>Property classes</h2>
       <p>
-        Each of the 20 classes on <a href="classes.html" style="color:var(--brass-bright);">the class list</a> has
-        a coin that tracks an index price for that class. A market's USD price is always:
+        Each of the 20 classes on <a href="classes.html" style="color:var(--brass-bright);">the class list</a> is
+        a plain string tag — "SHED", "VILA", "COUCH" — attached to a launch when it's created.
+        It shows up in the UI and in the launch's on-chain metadata, and that's the whole
+        extent of what it does. There's no per-class coin, no oracle a trade depends on, and
+        no step where a buyer needs to hold anything but ETH before they can buy in. A joke
+        class and a serious one go through the exact same contract calls.
       </p>
-      <div class="spec" style="max-width:520px; margin:18px 0;">
-        <div class="spec-row"><span class="k">token USD price</span><span class="v brass">price in pair coin × pair coin's USD index</span></div>
-      </div>
       <p>
-        Real estate doesn't trade on a continuous exchange the way gold or wheat does, so
-        each class's index is a rolling median of recent comparable sale and listing data
-        for that class, submitted by a set of oracle reporters and aggregated on-chain by
-        <code>PriceOracle.sol</code>. A single-sided liquidity pool keeps each class coin
-        buyable and sellable against USDG at that index price, the same role a Uniswap pool
-        plays for a commodity coin. For classes with no reliable data feed yet — a friend's
-        couch, a lean-to — the index is a fixed, published reference price maintained by the
-        Parcel team until a real data source exists; that's disclosed on the class's own page.
+        <code>PriceOracle.sol</code> still exists in the repo as an optional, currently-unused
+        piece — a place to eventually hang a real "this launch is worth roughly N sheds" style
+        display, fed by comparable sales or listing data. Nothing in the live contracts reads
+        from it today.
       </p>
     </div>
   </section>
@@ -84,45 +81,48 @@
   <section class="section">
     <div class="wrap">
       <h2>Launch terms</h2>
-      <p>Every launch follows the same curve, whatever it's paired with.</p>
+      <p>Every launch follows the same curve, whatever class it's tagged with.</p>
       <div class="steps">
         <div class="step">
           <div class="num"></div>
           <div>
             <h3>Mint and open</h3>
             <p>A launch mints 1,000,000,000 tokens. 800 million sell on a virtual-liquidity
-              curve that opens at a $5,000 market cap and completes at $35,000, both fixed
-              in the pair coin at creation. 200 million are reserved for migration.</p>
+              curve priced directly in ETH, using fixed virtual reserves (3 ETH / 1,073,000,000
+              tokens) set once in the contract — not derived from any price feed. That opens
+              the curve around a 2.8 ETH implied cap. 200 million tokens are reserved for
+              migration.</p>
           </div>
         </div>
         <div class="step">
           <div class="num"></div>
           <div>
             <h3>Creator sets the fee and buys first</h3>
-            <p>The creator picks a trading fee between 1% and 3% and makes a first buy of at
-              least $1 in the same transaction that creates the market — a market can't exist
-              with zero buyers. Buys can be paid in ETH, USDG, or the pair coin directly; ETH
-              and USDG are swapped to the pair coin on the way in.</p>
+            <p>The creator picks a trading fee between 1% and 3% and sends their first buy —
+              any amount of ETH — in the same transaction that creates the market, so a market
+              never exists with zero buyers. No approval step, because there's nothing to
+              approve: the ETH goes straight into the constructor call.</p>
           </div>
         </div>
         <div class="step">
           <div class="num"></div>
           <div>
             <h3>Trade on the curve</h3>
-            <p>Anyone can buy or sell against the curve while it's open. Price moves along a
-              constant-product virtual curve — no external liquidity is at risk during this
-              phase, since the reserves are virtual until migration.</p>
+            <p>Anyone can buy or sell against the curve while it's open, straight in ETH.
+              Price moves along a constant-product virtual curve. If a buy would sell more
+              tokens than the curve has left, it's automatically capped at the remaining
+              supply and the unused ETH is refunded in the same transaction — it doesn't
+              revert on you for sending slightly too much.</p>
           </div>
         </div>
         <div class="step">
           <div class="num"></div>
           <div>
             <h3>Migrate</h3>
-            <p>When the last curve token sells, the pair coin raised and the reserved 200
-              million tokens move into a Uniswap v4 pool in the same transaction, at the
-              curve's final price. The pool charges the same fee the creator chose, enforced
-              by the pool itself, and its liquidity is permanent — it isn't withdrawable by
-              the creator or by Parcel.</p>
+            <p>When the curve sells out, the ETH raised and the reserved 200 million tokens
+              move into a Uniswap v4 pool in the same transaction, at the curve's final price.
+              The pool charges the same fee the creator chose, enforced by the pool itself, and
+              its liquidity is permanent — it isn't withdrawable by the creator or by Parcel.</p>
           </div>
         </div>
       </div>
@@ -132,15 +132,15 @@
   <section class="section">
     <div class="wrap">
       <h2>Fees</h2>
-      <p>Every fee is split the same way on the curve and in the pool after migration:</p>
+      <p>Every fee is split the same way on the curve and in the pool after migration, always in ETH:</p>
       <table class="fee-table">
         <thead>
           <tr><th>Recipient</th><th>Share</th><th>Paid in</th><th>How</th></tr>
         </thead>
         <tbody>
-          <tr><td>Creator</td><td>30%</td><td>pair coin</td><td>Claimed from the account page, any time.</td></tr>
-          <tr><td>Holders of the market's pair</td><td>40%</td><td>the pair coin</td><td>Weighted by balance, sent automatically — no claim step.</td></tr>
-          <tr><td>Parcel</td><td>30%</td><td>pair coin</td><td>Funds oracle reporting and the exchange.</td></tr>
+          <tr><td>Creator</td><td>30%</td><td>ETH</td><td>Claimed from the account page, any time.</td></tr>
+          <tr><td>Holders of the token</td><td>40%</td><td>ETH</td><td>Weighted by balance — claimed with one call, not pushed automatically (see below).</td></tr>
+          <tr><td>Parcel</td><td>30%</td><td>ETH</td><td>Funds the exchange.</td></tr>
         </tbody>
       </table>
     </div>
@@ -164,9 +164,8 @@
       <p>The contracts can be deployed for real to Robinhood Chain Testnet (see <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>) and this site will pick that up automatically. Even deployed, some things are still simplified:</p>
       <ul style="color:var(--paper-dim); max-width:64ch;">
         <li>The contracts are unaudited reference code — testnet only. Nothing here should hold mainnet funds as-is.</li>
-        <li>A launch's first buy has to be paid directly in the pair coin on testnet — there's no in-contract swap from ETH or USDG yet, unlike the docs' description of the intended mainnet behavior.</li>
-        <li>There's no real Uniswap v4 pool behind migration on testnet — <code>TestnetMigrator</code> just holds the raised coin and reserved tokens so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it.</li>
-        <li><code>PriceOracle.sol</code> takes reporter-submitted prices; it doesn't ship a real data pipeline to Zillow, Redfin, county records, or any other source. The testnet deployment seeds each class with a single placeholder price.</li>
+        <li>Holder fees are claim-based, not pushed to every holder automatically — see the fees table above. Pushing a transfer to every holder on every trade doesn't scale gas-wise; a production front end should surface a "claim" button rather than imply it happens with no action.</li>
+        <li>There's no real Uniswap v4 pool behind migration on testnet — <code>TestnetMigrator</code> just holds the raised ETH and reserved tokens so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it.</li>
         <li>Market images and descriptions aren't pinned to IPFS — the launch form encodes them into an inline data URI, which is fine for a demo and not for anything meant to last.</li>
         <li>There's no markets index — <code>index.html</code> shows the static class list, not live launches. Finding a specific market means reading <code>LaunchCreated</code> events or checking the explorer directly.</li>
         <li>Nothing here evaluates whether tokenizing a specific physical property makes the resulting coin a security, a real-estate-adjacent financial product, or something requiring registration in your jurisdiction. That's a legal question, not a code path — talk to a lawyer before this touches real money or real property titles.</li>
@@ -197,9 +196,8 @@
       row("Status", "Live") +
       row("Chain ID", "46630 (testnet)") +
       row("ParcelFactory", d.factory.slice(0, 10) + "…" + d.factory.slice(-6), d.explorer + "/address/" + d.factory) +
-      row("PriceOracle", d.oracle.slice(0, 10) + "…" + d.oracle.slice(-6), d.explorer + "/address/" + d.oracle) +
-      row("MockUSDG", d.usdg.slice(0, 10) + "…" + d.usdg.slice(-6), d.explorer + "/address/" + d.usdg) +
-      row("Property-class coins deployed", Object.keys(d.classCoins).length + " / " + PROPERTY_CLASSES.length);
+      row("TestnetMigrator", d.migrator.slice(0, 10) + "…" + d.migrator.slice(-6), d.explorer + "/address/" + d.migrator) +
+      row("Property classes", PROPERTY_CLASSES.length + " (display tags — no coin required)");
   });
 </script>
 </body>

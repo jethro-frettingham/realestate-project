@@ -1,8 +1,9 @@
 # Deploying to Robinhood Chain Testnet
 
-This deploys the full Parcel contract stack — oracle, 20 property-class
-coins, factory, and a testnet-only migrator — to Robinhood Chain Testnet,
-and wires the live site to it automatically.
+Deploys the Parcel stack — a `TestnetMigrator` and a `ParcelFactory` —
+to Robinhood Chain Testnet, and wires the live site to it automatically.
+Launches are ETH-native, so that's the entire deployment: no per-class
+coin, no USDG mock, no oracle to seed.
 
 Robinhood Chain Testnet:
 
@@ -49,12 +50,13 @@ file and it only ever needs to hold testnet ETH.
 
 1. Create a new wallet in MetaMask (or any wallet) and copy its address
    and private key.
-2. `cp .env.example .env` and paste the private key in as `PRIVATE_KEY`.
-   `.env` is already in `.gitignore` — it should never be committed.
+2. `cp .env.example .env` and paste the private key in as `PRIVATE_KEY`
+   — **with a `0x` prefix**, which MetaMask's copy doesn't include by
+   default (`PRIVATE_KEY=0xabc123...`). `.env` is already in
+   `.gitignore` — it should never be committed.
 3. Get testnet ETH for that address from
    [faucet.testnet.chain.robinhood.com](https://faucet.testnet.chain.robinhood.com).
-   You only need a small amount — this deploys ~23 contracts but they're
-   all small.
+   This deployment is just two small contracts, so a small amount is enough.
 
 ## 4. Deploy
 
@@ -62,14 +64,12 @@ file and it only ever needs to hold testnet ETH.
 forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 ```
 
-This deploys `MockUSDG`, `PriceOracle` (seeded with a starting price for
-all 20 property classes), one `PropertyClassCoin` per class,
-`TestnetMigrator`, and `ParcelFactory` — then writes every address to
-`deployments/testnet.json`.
+This deploys `TestnetMigrator` and `ParcelFactory`, then writes both
+addresses to `deployments/testnet.json`.
 
 If it fails partway through, it's almost always one of:
 - **Insufficient funds** — get more from the faucet.
-- **`PRIVATE_KEY` not set** — check `.env` was created and saved.
+- **`PRIVATE_KEY` not set or missing its `0x` prefix** — check `.env`.
 - **Dependency not found** — re-run step 2.
 
 ## 5. Commit the deployment record
@@ -82,31 +82,32 @@ git push
 
 `assets/app.js` fetches `deployments/testnet.json` at page load. Once
 this is pushed and GitHub Pages redeploys (a minute or two), `launch.html`
-switches from the "demo only" preview to actually calling `createLaunch`
+switches from the "preview mode" notice to actually calling `createLaunch`
 on your deployed `ParcelFactory` — Connect Wallet will also offer to add
 Robinhood Chain Testnet to the user's wallet if it isn't already there.
 
-## 6. Get yourself some testnet property-class coin to launch with
+## 6. Test a launch
 
-The creator's first buy has to be paid in ETH, USDG, or the pair coin —
-on testnet that means `MockUSDG` or a `PropertyClassCoin`. `MockUSDG` is
-open-mint for exactly this reason:
+Once deployed, launching needs nothing but testnet ETH — no minting, no
+approvals. On `launch.html`: connect a wallet holding testnet ETH, fill
+in a name and ticker, pick a property class, enter a first-buy amount in
+ETH, and submit. One transaction, one wallet confirmation.
+
+To interact from the command line instead (e.g. to script a test buy on
+an existing launch):
 
 ```bash
-cast send <usdg address from deployments/testnet.json> \
-  "faucet(uint256)" 1000000000000000000000 \
-  --rpc-url robinhood_testnet --private-key $PRIVATE_KEY
+# Buy into a curve directly — replace the address with a curve's address
+# from a LaunchCreated event or the explorer.
+cast send <curve address> "buy(uint256)" 0 \
+  --value 0.1ether --rpc-url robinhood_testnet --private-key $PRIVATE_KEY
 ```
-
-That mints 1,000 mUSDG to your deployer wallet. Approve and call `mint`
-on a `PropertyClassCoin` (addresses under `classCoins` in
-`deployments/testnet.json`) to convert some of it into, say, SHED before
-launching a market paired with SHED.
 
 ## Redeploying
 
-Re-running the script deploys a fresh set of contracts and overwrites
-`deployments/testnet.json` — old launches created against the previous
-factory won't show up anywhere new (there's no markets-listing indexer
-in this repo yet; `index.html`'s tiles are still static class previews,
-not live launches). Commit and push again after any redeploy.
+Re-running the script deploys a fresh `TestnetMigrator` and
+`ParcelFactory` and overwrites `deployments/testnet.json` — old launches
+created against the previous factory won't show up anywhere new (there's
+no markets-listing indexer in this repo yet; `index.html`'s tiles are
+still static class previews, not live launches). Commit and push again
+after any redeploy.
