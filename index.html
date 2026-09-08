@@ -209,6 +209,8 @@
     }
     statusEl.textContent = "Loading launches from chain…";
     let markets = [];
+    let activeFilter = "all";
+    let query = "";
     try {
       const launches = await Parcel.fetchAllLaunches();
       if (launches.length === 0) {
@@ -243,9 +245,6 @@
       statusEl.textContent = "Couldn't load markets: " + (err.message || err);
       return;
     }
-
-    let activeFilter = "all";
-    let query = "";
 
     function render() {
       document.getElementById("count-all").textContent = markets.length;
