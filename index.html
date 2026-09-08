@@ -108,6 +108,20 @@
     <div class="wrap">
       <div class="section-head">
         <div>
+          <h2>Live markets</h2>
+          <p>Every launch, read straight from the chain — no indexer, no database. This list is exactly what <code>ParcelFactory</code> has recorded on Robinhood Chain Testnet.</p>
+        </div>
+        <a class="btn btn-outline" href="launch.html">Launch a coin</a>
+      </div>
+      <div id="markets-status" class="sub" style="margin-bottom:16px;">Checking for a live deployment…</div>
+      <div id="markets-list"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
           <h2>Property classes</h2>
           <p>Every launch pairs with one of these. Novelty classes exist alongside real housing stock on purpose — the mechanics don't care which one you pick.</p>
         </div>
@@ -134,9 +148,10 @@
         <div class="spec-row"><span class="k">Curve completes at</span><span class="v brass">~8.8 ETH raised</span></div>
         <div class="spec-row"><span class="k">Paid in</span><span class="v">ETH — no minting, no approval</span></div>
         <div class="spec-row"><span class="k">Creator trading fee</span><span class="v">1% – 3%, set at launch</span></div>
-        <div class="spec-row"><span class="k">Fee split</span><span class="v">40% creator / 30% $PARCEL buyback / 30% protocol</span></div>
+        <div class="spec-row"><span class="k">Fee split</span><span class="v">70% creator / 30% protocol</span></div>
         <div class="spec-row"><span class="k">Holder rewards</span><span class="v">none — nothing to claim just for holding</span></div>
-        <div class="spec-row"><span class="k">On migration</span><span class="v">moves to a Uniswap v4 pool, permanently</span></div>
+        <div class="spec-row"><span class="k">Class picked?</span><span class="v">migrates into 2 pools (TOKEN/ETH + TOKEN/class) instead of 1</span></div>
+        <div class="spec-row"><span class="k">On migration</span><span class="v">moves to Uniswap v4 pool(s), permanently</span></div>
       </div>
     </div>
   </section>
@@ -162,6 +177,7 @@
   </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
 <script>
@@ -171,6 +187,59 @@
   const examples = ["SHED", "HOUS", "VILA", "COUCH", "RV", "HIRS"]
     .map(t => PROPERTY_CLASSES.find(c => c.ticker === t));
   document.getElementById("tier-examples").innerHTML = examples.map(c => renderClassTile(c)).join("");
+
+  async function loadMarkets() {
+    const statusEl = document.getElementById("markets-status");
+    const listEl = document.getElementById("markets-list");
+    const deployment = await Parcel.loadDeployment();
+    if (!deployment) {
+      statusEl.textContent = "No live deployment found yet — see DEPLOY.md.";
+      return;
+    }
+    statusEl.textContent = "Loading launches from chain…";
+    try {
+      const launches = await Parcel.fetchAllLaunches();
+      if (launches.length === 0) {
+        statusEl.textContent = "No launches yet — be the first.";
+        return;
+      }
+      statusEl.textContent = launches.length + " launch" + (launches.length === 1 ? "" : "es") + " on Robinhood Chain Testnet.";
+      listEl.innerHTML = `<div class="spec">` + launches.map((l) => {
+        const meta = decodeMetadata(l.metadataURI);
+        const paired = l.propertyClass ? l.propertyClass : "ETH only";
+        const age = timeAgo(l.createdAt);
+        return `<div class="spec-row">
+          <span class="k"><a href="market.html?curve=${l.curve}" style="color:var(--paper);">${escapeHtml(meta.name || "Untitled")}</a>
+            <span class="mono" style="color:var(--paper-dim); font-size:12px;">${escapeHtml(meta.ticker || "")}</span></span>
+          <span class="v"><span class="brass">${paired}</span> · ${age}</span>
+        </div>`;
+      }).join("") + `</div>`;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "Couldn't load launches: " + (err.message || err);
+    }
+  }
+
+  function decodeMetadata(uri) {
+    try {
+      const b64 = uri.split(",")[1];
+      return JSON.parse(decodeURIComponent(escape(atob(b64))));
+    } catch (_) {
+      return {};
+    }
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function timeAgo(unixSeconds) {
+    const seconds = Math.floor(Date.now() / 1000) - unixSeconds;
+    if (seconds < 60) return seconds + "s ago";
+    if (seconds < 3600) return Math.floor(seconds / 60) + "m ago";
+    if (seconds < 86400) return Math.floor(seconds / 3600) + "h ago";
+    return Math.floor(seconds / 86400) + "d ago";
+  }
+
+  loadMarkets();
 </script>
 </body>
 </html>
