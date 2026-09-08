@@ -4,9 +4,8 @@
   "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
   "explorer": "https://explorer.testnet.chain.robinhood.com",
   "faucet": "https://faucet.testnet.chain.robinhood.com",
-  "deployer": null,
-  "factory": null,
-  "migrator": null,
-  "deployedAt": null,
-  "_note": "Placeholder. Run `forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast` to overwrite this with real addresses — see DEPLOY.md."
+  "deployer": "0x31Ed87F608D0833Be870d1BAE60E90b88818B9fF",
+  "factory": "0x5E4efba99fdc1E523389D180a05b1081233242d8",
+  "migrator": "0xE44Fa1E53Ec4C7F9e449fD87412393F60E4A3b6D",
+  "deployedAt": 1788903536
 }
