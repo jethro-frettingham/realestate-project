@@ -285,6 +285,18 @@ async function fetchRecentTrades(curveAddress, maxResults = 50) {
   }));
 }
 
+/** Total ETH traded on one curve, ever — sums every Trade event's ethIn
+ *  (buys) and ethOut (sells). Real, not estimated, but does mean scanning
+ *  every log for that curve; fine at today's testnet volumes. */
+async function fetchMarketVolumeEth(curveAddress) {
+  const deployment = await loadDeployment();
+  if (!deployment || typeof ethers === "undefined") return 0n;
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const curve = new ethers.Contract(curveAddress, CURVE_ABI, provider);
+  const events = await curve.queryFilter(curve.filters.Trade(), 0, "latest");
+  return events.reduce((sum, e) => sum + (e.args.isBuy ? e.args.ethIn : e.args.ethOut), 0n);
+}
+
 /** Buy on an existing curve — same shape as a launch's first buy. */
 async function buyOnCurve(curveAddress, ethIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
@@ -488,5 +500,5 @@ window.Parcel = {
   parcelGlyph, renderClassTile, virtualReserves, quoteBuy, CURVE,
   connectWallet, loadDeployment, submitLaunch, ensureRobinhoodTestnet, RH_CHAIN,
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin,
-  fetchAllLaunches, fetchCurveState, fetchRecentTrades, buyOnCurve, sellOnCurve,
+  fetchAllLaunches, fetchCurveState, fetchRecentTrades, fetchMarketVolumeEth, buyOnCurve, sellOnCurve,
 };
