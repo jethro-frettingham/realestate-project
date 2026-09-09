@@ -47,7 +47,8 @@
           <div class="field">
             <label for="image">Image</label>
             <div class="dropzone" id="dropzone">
-              <span id="dropzone-text">PNG, JPEG, WebP · up to 5&nbsp;MB</span>
+              <img id="dropzone-preview" style="display:none; max-height:64px; margin-bottom:8px;">
+              <span id="dropzone-text">PNG, JPEG, WebP · up to 5&nbsp;MB · resized to a small icon before it's stored on-chain</span>
               <input type="file" id="image" accept="image/png,image/jpeg,image/webp" style="display:none;">
             </div>
           </div>
@@ -181,9 +182,7 @@
         This submits a real <code>createLaunch</code> transaction to
         <a href="${deployment.explorer}/address/${deployment.factory}" target="_blank" rel="noopener" style="color:var(--brass-bright);">
         the deployed ParcelFactory</a> — paid in ETH, nothing to approve or mint first, whether or not you pick a class. Get testnet ETH from
-        <a href="${deployment.faucet}" target="_blank" rel="noopener" style="color:var(--brass-bright);">the faucet</a> if you need it.
-        Tokenizing a specific physical property may make the resulting coin a security in your
-        jurisdiction — that's a legal question for a lawyer, not a setting in this repo.`;
+        <a href="${deployment.faucet}" target="_blank" rel="noopener" style="color:var(--brass-bright);">the faucet</a> if you need it.`;
     } else {
       disclosure.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet at
         <code>deployments/testnet.json</code>. The terms below are real bonding-curve math, but
@@ -193,7 +192,12 @@
   }
 
   function updateOverview() {
-    document.getElementById("ov-pair").textContent = selectedClass ? selectedClass.ticker : "None";
+    const ovPairEl = document.getElementById("ov-pair");
+    if (selectedClass) {
+      ovPairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(selectedClass.ticker)}" style="color:inherit;" target="_blank" rel="noopener">${selectedClass.ticker}</a>`;
+    } else {
+      ovPairEl.textContent = "None";
+    }
     document.getElementById("panel-sub").textContent = selectedClass
       ? selectedClass.label + " — " + selectedClass.unit + ". Migrates into two pools: TOKEN/ETH and TOKEN/" + selectedClass.ticker + "."
       : "No class picked — migrates into a single TOKEN/ETH pool.";
@@ -225,10 +229,29 @@
 
   const dropzone = document.getElementById("dropzone");
   const imageInput = document.getElementById("image");
+  let imageDataUri = null;
   dropzone.addEventListener("click", () => imageInput.click());
-  imageInput.addEventListener("change", () => {
+  imageInput.addEventListener("change", async () => {
     const f = imageInput.files[0];
-    document.getElementById("dropzone-text").textContent = f ? f.name : "PNG, JPEG, WebP · up to 5 MB";
+    if (!f) {
+      imageDataUri = null;
+      document.getElementById("dropzone-text").textContent = "PNG, JPEG, WebP · up to 5 MB · resized to a small icon before it's stored on-chain";
+      document.getElementById("dropzone-preview").style.display = "none";
+      return;
+    }
+    document.getElementById("dropzone-text").textContent = "Processing " + f.name + "…";
+    try {
+      imageDataUri = await Parcel.resizeImageToDataUri(f, 200, 0.72);
+      const preview = document.getElementById("dropzone-preview");
+      preview.src = imageDataUri;
+      preview.style.display = "block";
+      const kb = Math.round((imageDataUri.length * 0.75) / 1024); // rough base64 -> bytes estimate
+      document.getElementById("dropzone-text").textContent = f.name + " — resized, ~" + kb + " KB on-chain";
+    } catch (err) {
+      console.error(err);
+      imageDataUri = null;
+      document.getElementById("dropzone-text").textContent = "Couldn't read that image — try a different file.";
+    }
   });
 
   function recalcReceive() {
@@ -249,10 +272,8 @@
   document.getElementById("ticker").addEventListener("input", recalcReceive);
 
   // Metadata storage isn't wired to IPFS in this demo — bundle the form's
-  // text fields into a small inline data URI instead. The uploaded image
-  // itself isn't persisted anywhere on testnet; swap this for a real
-  // upload (e.g. to IPFS via a pinning service) before this matters for
-  // anything beyond a demo.
+  // text fields (and a small resized image, if one was picked) into an
+  // inline data URI instead.
   function buildMetadataURI() {
     const meta = {
       name: document.getElementById("name").value,
@@ -261,6 +282,7 @@
       x: document.getElementById("x").value || null,
       telegram: document.getElementById("telegram").value || null,
       description: document.getElementById("description").value || null,
+      image: imageDataUri || null,
       note: "testnet demo metadata -- not pinned to IPFS",
     };
     // btoa only handles Latin1 — encode through UTF-8 first so names,
@@ -301,7 +323,8 @@
         metadataURI: buildMetadataURI(),
         firstBuyIn,
       });
-      setStatus("Launched. Token: " + result.token + " — view tx: " + deployment.explorer + "/tx/" + result.txHash);
+      setStatus("Launched — taking you to your market…");
+      setTimeout(() => { location.href = "market.html?curve=" + result.curve; }, 900);
     } catch (err) {
       console.error(err);
       setStatus(err.message || String(err), true);

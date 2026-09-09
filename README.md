@@ -123,14 +123,11 @@ wallet.
   a class coin if applicable) rather than seeding a real pool — a
   migrated market has nowhere to trade until a real AMM integration
   replaces it.
-- **`market.html` shows a trade list, not a price chart** — recent
-  `Trade` events straight from the chain, no OHLC/candle aggregation.
+- **The price chart uses trade sequence, not real timestamps** — one
+  line, no candles or OHLC aggregation, and no per-trade RPC call to
+  fetch exact block times.
 - **No legal review.** Tokenizing a specific physical property — a
   named shed, a named villa — may make the resulting token a security,
   a fractional-ownership instrument, or something else regulated,
   depending on jurisdiction and on whether the token actually confers
-  any claim on the property. Nothing in this repo represents, and the
-  UI's "novelty" framing for some classes doesn't change, that this is
-  a legal question for a lawyer before it touches real money, real
-  property titles, or real users — not a configuration choice made in
-  code.
+  any claim on the property.

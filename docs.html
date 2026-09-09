@@ -168,9 +168,9 @@
         <li>The contracts are unaudited reference code — testnet only. Nothing here should hold mainnet funds as-is.</li>
         <li>Every property-class coin's rate is <strong>static</strong> — fixed once at deploy time, using a flat assumed ETH/USD rate to pick starting numbers. It never updates. That's fine for a demo but wrong for anything real: a real deployment needs a live price feed behind each class, and real USDG should just be the actual USDG stablecoin rather than a static-rate stand-in (a fixed rate is a much worse problem for something claiming to be a stablecoin than for a property class coin).</li>
         <li>There's no real Uniswap v4 pool behind migration on testnet — <code>TestnetMigrator</code> just holds whatever it's given (ETH, and a class coin if one was picked) so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it — this applies to both pools when a class was picked, not just one.</li>
-        <li>Market pages show a trade list, not a price chart — recent <code>Trade</code> events straight from the chain, with no OHLC/candle aggregation on top.</li>
-        <li>Market images and descriptions aren't pinned to IPFS — the launch form encodes them into an inline data URI, which is fine for a demo and not for anything meant to last.</li>
-        <li>Nothing here evaluates whether tokenizing a specific physical property makes the resulting coin a security, a real-estate-adjacent financial product, or something requiring registration in your jurisdiction. That's a legal question, not a code path — talk to a lawyer before this touches real money or real property titles.</li>
+        <li>The price chart plots implied price per trade in trade sequence, not real timestamps (avoids an RPC call per trade), and it's a simple line — no candles, no OHLC aggregation, no zoom/pan.</li>
+        <li>Launch images are real now — resized client-side and embedded directly in the on-chain metadata — but they still aren't pinned to IPFS or any external host, and they're capped small (a few KB) specifically because a launch's metadata is a string in contract calldata, so gas cost scales with its size.</li>
+        <li>Nothing here evaluates whether tokenizing a specific physical property makes the resulting coin a security, a real-estate-adjacent financial product, or something requiring registration in your jurisdiction.</li>
       </ul>
     </div>
   </section>

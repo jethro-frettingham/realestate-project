@@ -245,6 +245,65 @@ async function fetchAllLaunches() {
   return launches.reverse(); // newest first
 }
 
+/** Look up a single launch's on-chain record by its curve address — for
+ *  pages (like market.html) that only have the curve address in the URL
+ *  and need the metadataURI (name, links, image) that goes with it.
+ *  Scans every launch client-side; fine at today's testnet scale. */
+async function fetchLaunchByCurve(curveAddress) {
+  const launches = await fetchAllLaunches();
+  const target = curveAddress.toLowerCase();
+  return launches.find((l) => l.curve.toLowerCase() === target) || null;
+}
+
+/** Decodes a launch's metadataURI (a base64 data: URI of JSON) back into
+ *  a plain object. Returns {} on anything malformed rather than throwing,
+ *  since this is display-only. */
+function decodeMetadata(uri) {
+  try {
+    const b64 = uri.split(",")[1];
+    return JSON.parse(decodeURIComponent(escape(atob(b64))));
+  } catch (_) {
+    return {};
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/** Reads an <input type=file> image, downscales it to at most maxDim on
+ *  its longer side, and re-encodes it as a compressed JPEG data URI.
+ *  This runs entirely in the browser (canvas), no upload anywhere — the
+ *  resulting string is what gets embedded in the launch's on-chain
+ *  metadata, so keeping it small matters: metadataURI is a string in
+ *  contract calldata, and gas cost scales with its size. A few KB is
+ *  cheap; a multi-MB photo would make launching noticeably more
+ *  expensive. Resolves to null if no file is given.
+ */
+function resizeImageToDataUri(file, maxDim = 200, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    if (!file) { resolve(null); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Couldn't read the image file."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Couldn't decode the image file."));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /** Full live state for one market's curve, plus its token's name/symbol —
  *  everything a trading page needs, all view calls. */
 async function fetchCurveState(curveAddress) {
@@ -307,6 +366,45 @@ async function buyOnCurve(curveAddress, ethIn) {
   const tx = await curve.buy(0n, { value: ethIn });
   const receipt = await tx.wait();
   return { txHash: receipt.hash };
+}
+
+/**
+ * Buy into a curve using USDG or a property class coin instead of ETH
+ * directly — pre-migration, same as every other buy. There's no contract
+ * path that takes the coin straight in; this chains two real
+ * transactions the coin already supports: redeem the coin for the exact
+ * ETH backing it (read back from the coin's own Redeemed event, not
+ * estimated), then buy on the curve with that ETH. Two wallet
+ * confirmations, not one — that's an honest tradeoff of this being
+ * front-end orchestration rather than a single contract call.
+ */
+async function buyOnCurveWithCoin(curveAddress, coinAddress, coinAmountIn) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, signer);
+
+  const redeemTx = await coin.redeem(coinAmountIn, 0n);
+  const redeemReceipt = await redeemTx.wait();
+
+  const iface = new ethers.Interface(PROPERTY_COIN_ABI.concat([
+    "event Redeemed(address indexed who, uint256 coinIn, uint256 ethOut)",
+  ]));
+  let ethOut = null;
+  for (const log of redeemReceipt.logs) {
+    try {
+      const parsed = iface.parseLog(log);
+      if (parsed && parsed.name === "Redeemed") ethOut = parsed.args.ethOut;
+    } catch (_) { /* not our event */ }
+  }
+  if (ethOut === null) throw new Error("Couldn't confirm the redeem amount — try again.");
+
+  const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
+  const buyTx = await curve.buy(0n, { value: ethOut });
+  const buyReceipt = await buyTx.wait();
+
+  return { redeemTxHash: redeemReceipt.hash, buyTxHash: buyReceipt.hash, ethUsed: ethOut };
 }
 
 /** Sell on an existing curve. Needs one approval the first time (the
@@ -500,5 +598,6 @@ window.Parcel = {
   parcelGlyph, renderClassTile, virtualReserves, quoteBuy, CURVE,
   connectWallet, loadDeployment, submitLaunch, ensureRobinhoodTestnet, RH_CHAIN,
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin,
-  fetchAllLaunches, fetchCurveState, fetchRecentTrades, fetchMarketVolumeEth, buyOnCurve, sellOnCurve,
+  fetchAllLaunches, fetchLaunchByCurve, decodeMetadata, escapeHtml, resizeImageToDataUri,
+  fetchCurveState, fetchRecentTrades, fetchMarketVolumeEth, buyOnCurve, buyOnCurveWithCoin, sellOnCurve,
 };

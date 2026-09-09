@@ -238,6 +238,19 @@
   });
 
   refreshDisclosure();
+
+  // Auto-select a coin from ?coin=TICKER (used by links elsewhere on the
+  // site — market cards, a market page's "Paired with" row, etc.).
+  const requestedTicker = new URLSearchParams(location.search).get("coin");
+  if (requestedTicker) {
+    const entry = ALL_TRADEABLE.find(c => c.ticker === requestedTicker.toUpperCase());
+    if (entry) {
+      const tile = document.querySelector(`#all-classes .tile[data-ticker="${entry.ticker}"]`);
+      if (tile) { document.querySelectorAll("#all-classes .tile").forEach(t => t.style.borderColor = ""); tile.style.borderColor = "var(--brass)"; }
+      selectCoin(entry);
+      document.getElementById("all-classes").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
 </script>
 </body>
 </html>
