@@ -114,8 +114,11 @@
 
   function setStatus(msg, isError) {
     statusEl.style.display = msg ? "block" : "none";
-    statusEl.textContent = msg || "";
+    statusEl.innerHTML = msg || "";
     statusEl.style.color = isError ? "var(--flag)" : "var(--brass-bright)";
+  }
+  function txLink(hash) {
+    return `<a href="${deployment.explorer}/tx/${hash}" target="_blank" rel="noopener" style="color:inherit;">${hash.slice(0, 10)}…${hash.slice(-6)}</a>`;
   }
 
   function addressFor(ticker) {
@@ -219,7 +222,7 @@
         // Coin amounts are 18-decimal ERC20 units, same as ETH's parseEther.
         result = await Parcel.redeemPropertyCoin(coinAddress, ethers.parseEther(amt));
       }
-      setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + deployment.explorer + "/tx/" + result.txHash);
+      setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + txLink(result.txHash));
       selectCoin(selected); // refresh balance/rate display
       amountEl.value = "";
       updatePreview();
