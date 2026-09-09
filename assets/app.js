@@ -368,6 +368,45 @@ async function buyOnCurve(curveAddress, ethIn) {
   return { txHash: receipt.hash };
 }
 
+/**
+ * Buy into a curve using USDG or a property class coin instead of ETH
+ * directly — pre-migration, same as every other buy. There's no contract
+ * path that takes the coin straight in; this chains two real
+ * transactions the coin already supports: redeem the coin for the exact
+ * ETH backing it (read back from the coin's own Redeemed event, not
+ * estimated), then buy on the curve with that ETH. Two wallet
+ * confirmations, not one — that's an honest tradeoff of this being
+ * front-end orchestration rather than a single contract call.
+ */
+async function buyOnCurveWithCoin(curveAddress, coinAddress, coinAmountIn) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, signer);
+
+  const redeemTx = await coin.redeem(coinAmountIn, 0n);
+  const redeemReceipt = await redeemTx.wait();
+
+  const iface = new ethers.Interface(PROPERTY_COIN_ABI.concat([
+    "event Redeemed(address indexed who, uint256 coinIn, uint256 ethOut)",
+  ]));
+  let ethOut = null;
+  for (const log of redeemReceipt.logs) {
+    try {
+      const parsed = iface.parseLog(log);
+      if (parsed && parsed.name === "Redeemed") ethOut = parsed.args.ethOut;
+    } catch (_) { /* not our event */ }
+  }
+  if (ethOut === null) throw new Error("Couldn't confirm the redeem amount — try again.");
+
+  const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
+  const buyTx = await curve.buy(0n, { value: ethOut });
+  const buyReceipt = await buyTx.wait();
+
+  return { redeemTxHash: redeemReceipt.hash, buyTxHash: buyReceipt.hash, ethUsed: ethOut };
+}
+
 /** Sell on an existing curve. Needs one approval the first time (the
  *  curve pulls the launch token via transferFrom), then sells. */
 async function sellOnCurve(curveAddress, tokenAddress, tokenAmountIn) {
@@ -560,5 +599,5 @@ window.Parcel = {
   connectWallet, loadDeployment, submitLaunch, ensureRobinhoodTestnet, RH_CHAIN,
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin,
   fetchAllLaunches, fetchLaunchByCurve, decodeMetadata, escapeHtml, resizeImageToDataUri,
-  fetchCurveState, fetchRecentTrades, fetchMarketVolumeEth, buyOnCurve, sellOnCurve,
+  fetchCurveState, fetchRecentTrades, fetchMarketVolumeEth, buyOnCurve, buyOnCurveWithCoin, sellOnCurve,
 };
