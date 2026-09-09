@@ -42,11 +42,25 @@ contract Deploy is Script {
         "Shanty", "Cabin", "Condo Unit", "Single-family House", "Duplex", "Townhouse",
         "Villa", "Manor Estate", "Farmland", "Commercial Unit", "High-rise Unit"
     ];
+    // Starting USD reference prices — researched Sept 2026, averaged across
+    // multiple sources per category where a real market exists. Novelty-tier
+    // items (COUCH, TENT, SHED, LEAN, VAN, SHTY) have no real market to
+    // research and stay illustrative — just not suspiciously round anymore.
+    // Full source list and methodology: see docs.html "Property-class coins".
+    //   RV, TINY, TRLR, CTNR, CABN, CNDO, HOUS, FARM, VILA, MANR, COMM —
+    //   averaged from 2–4 independent sources each (RV/motorhome pricing
+    //   guides, tiny-home cost guides, manufactured-home data, container-home
+    //   builders, cabin cost guides, Redfin/NAR/Census/Trading Economics for
+    //   housing, USDA/LandSearch/Purdue for farmland, Realtor.com's Luxury
+    //   Report for VILA/MANR, commercial per-sqft data for COMM).
+    //   DPLX/TOWN/HIRS are derived from HOUS/CNDO with a disclosed multiplier,
+    //   not independently sourced. FARM applies a disclosed 3x multiplier to
+    //   bare land value since no source prices "land with structures".
     uint256[20] usdPrices = [
-        uint256(50 ether), 200 ether, 4_200 ether, 300 ether,
-        18_000 ether, 45_000 ether, 60_000 ether, 55_000 ether, 35_000 ether,
-        8_000 ether, 90_000 ether, 250_000 ether, 420_000 ether, 650_000 ether, 480_000 ether,
-        1_200_000 ether, 3_500_000 ether, 15_000 ether, 900_000 ether, 380_000 ether
+        uint256(53 ether), 215 ether, 4_385 ether, 315 ether,
+        18_750 ether, 86_077 ether, 71_300 ether, 91_667 ether, 50_000 ether,
+        8_150 ether, 150_000 ether, 349_186 ether, 431_378 ether, 733_343 ether, 366_671 ether,
+        1_350_000 ether, 3_700_000 ether, 37_176 ether, 65_000 ether, 401_564 ether
     ];
 
     function run() external {
