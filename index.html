@@ -221,13 +221,14 @@
 
       markets = await Promise.all(launches.map(async (l) => {
         const meta = decodeMetadata(l.metadataURI);
-        const [state, volumeEth] = await Promise.all([
+        const [state, volumeWei] = await Promise.all([
           Parcel.fetchCurveState(l.curve),
           Parcel.fetchMarketVolumeEth(l.curve),
         ]);
         const spot = Number(ethers.formatEther(state.virtualEth)) / Number(ethers.formatEther(state.virtualToken));
         const fdvEth = spot * Number(ethers.formatEther(state.totalSupply));
         const pct = Number(state.tokensSold * 10000n / state.curveSupply) / 100;
+        const volumeEth = Number(ethers.formatEther(volumeWei)); // volumeWei is raw wei — convert before display
         return {
           curve: l.curve, name: meta.name || state.name || "Untitled",
           ticker: state.symbol, propertyClass: state.propertyClass,
