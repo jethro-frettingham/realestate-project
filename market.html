@@ -83,7 +83,7 @@
             <select id="mk-currency" style="width:100%; background:var(--ink-800); border:1px solid var(--line-cyan-dim); color:var(--paper); font-family:var(--font-mono); font-size:14px; padding:10px 13px; border-radius:var(--radius);">
               <option value="ETH">ETH</option>
             </select>
-            <p class="hint" id="mk-currency-hint" style="display:none;">Paying with this redeems it to ETH first, then buys — two wallet confirmations instead of one.</p>
+            <p class="hint" id="mk-currency-hint" style="display:none;"></p>
           </div>
 
           <div class="field">
@@ -131,8 +131,11 @@
 
   function setStatus(msg, isError) {
     statusEl.style.display = msg ? "block" : "none";
-    statusEl.textContent = msg || "";
+    statusEl.innerHTML = msg || "";
     statusEl.style.color = isError ? "var(--flag)" : "var(--brass-bright)";
+  }
+  function txLink(hash) {
+    return `<a href="${deployment.explorer}/tx/${hash}" target="_blank" rel="noopener" style="color:inherit;">${hash.slice(0, 10)}…${hash.slice(-6)}</a>`;
   }
 
   function fmtEth(wei) {
@@ -248,7 +251,7 @@
 
     if (trades.length === 0) {
       tradesEl.innerHTML = `<div class="spec-row"><span class="k">No trades yet</span></div>`;
-      chartEl.textContent = "No trades yet — nothing to chart.";
+      chartEl.innerHTML = buildEmptyChartSvg("No trades yet");
       return;
     }
 
@@ -270,10 +273,20 @@
     }).filter((p) => p !== null && p > 0);
 
     if (points.length < 2) {
-      chartEl.textContent = "Not enough trades yet to chart a trend.";
+      chartEl.innerHTML = buildEmptyChartSvg(points.length === 0 ? "No trades yet" : "One trade so far — need at least two to plot a line");
       return;
     }
     chartEl.innerHTML = buildPriceChartSvg(points);
+  }
+
+  function buildEmptyChartSvg(caption) {
+    const w = 560, h = 160, pad = 8;
+    // A flat baseline in the empty axes frame, styled distinctly from a
+    // real (down) trend line so it never reads as "price is $0".
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block; overflow:visible;">
+        <line x1="${pad}" y1="${h / 2}" x2="${w - pad}" y2="${h / 2}" style="stroke:var(--line-cyan-dim); stroke-width:1; stroke-dasharray:4 4;"/>
+      </svg>
+      <div style="text-align:center; font-family:var(--font-mono); font-size:11px; color:var(--paper-dim); margin-top:6px;">${caption}</div>`;
   }
 
   function buildPriceChartSvg(points) {
@@ -371,14 +384,14 @@
           setStatus("Confirm in your wallet…");
           result = await Parcel.buyOnCurve(curveAddress, ethers.parseEther(amt));
         } else {
-          setStatus("Confirm the redeem, then the buy — two wallet confirmations…");
+          setStatus("Confirm in your wallet…");
           result = await Parcel.buyOnCurveWithCoin(curveAddress, currencyAddresses[currency], ethers.parseEther(amt));
           result.txHash = result.buyTxHash; // for the status line below
         }
       } else {
         result = await Parcel.sellOnCurve(curveAddress, state.tokenAddr, ethers.parseEther(amt));
       }
-      setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + deployment.explorer + "/tx/" + result.txHash);
+      setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + txLink(result.txHash));
       amountEl.value = "";
       state = await Parcel.fetchCurveState(curveAddress);
       loadTradesAndChart();
