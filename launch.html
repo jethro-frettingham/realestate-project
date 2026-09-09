@@ -182,9 +182,7 @@
         This submits a real <code>createLaunch</code> transaction to
         <a href="${deployment.explorer}/address/${deployment.factory}" target="_blank" rel="noopener" style="color:var(--brass-bright);">
         the deployed ParcelFactory</a> — paid in ETH, nothing to approve or mint first, whether or not you pick a class. Get testnet ETH from
-        <a href="${deployment.faucet}" target="_blank" rel="noopener" style="color:var(--brass-bright);">the faucet</a> if you need it.
-        Tokenizing a specific physical property may make the resulting coin a security in your
-        jurisdiction — that's a legal question for a lawyer, not a setting in this repo.`;
+        <a href="${deployment.faucet}" target="_blank" rel="noopener" style="color:var(--brass-bright);">the faucet</a> if you need it.`;
     } else {
       disclosure.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet at
         <code>deployments/testnet.json</code>. The terms below are real bonding-curve math, but
@@ -194,7 +192,12 @@
   }
 
   function updateOverview() {
-    document.getElementById("ov-pair").textContent = selectedClass ? selectedClass.ticker : "None";
+    const ovPairEl = document.getElementById("ov-pair");
+    if (selectedClass) {
+      ovPairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(selectedClass.ticker)}" style="color:inherit;" target="_blank" rel="noopener">${selectedClass.ticker}</a>`;
+    } else {
+      ovPairEl.textContent = "None";
+    }
     document.getElementById("panel-sub").textContent = selectedClass
       ? selectedClass.label + " — " + selectedClass.unit + ". Migrates into two pools: TOKEN/ETH and TOKEN/" + selectedClass.ticker + "."
       : "No class picked — migrates into a single TOKEN/ETH pool.";
@@ -320,7 +323,8 @@
         metadataURI: buildMetadataURI(),
         firstBuyIn,
       });
-      setStatus("Launched. Token: " + result.token + " — view tx: " + deployment.explorer + "/tx/" + result.txHash);
+      setStatus("Launched — taking you to your market…");
+      setTimeout(() => { location.href = "market.html?curve=" + result.curve; }, 900);
     } catch (err) {
       console.error(err);
       setStatus(err.message || String(err), true);
