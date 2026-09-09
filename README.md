@@ -20,6 +20,7 @@ before you point real money at any of this.
 - `classes.html` — buy/sell any of the 20 property-class coins (or USDG) directly, against ETH, at their fixed rate
 - `launch.html` — the create-a-market form, with an optional property class
 - `market.html?curve=0x...` — a single market's live state, buy/sell, and recent trades
+- `coin.html?coin=TICKER` — a single property-class coin's own page: rate, supply chart, activity, mint/redeem
 - `docs.html` — how it works (mechanics, fees, migration, the peg)
 
 Open `index.html` directly in a browser, or serve the folder statically

@@ -206,7 +206,7 @@
       if (badge) {
         e.preventDefault();
         e.stopPropagation();
-        location.href = "classes.html?coin=" + encodeURIComponent(badge.dataset.ticker);
+        location.href = "coin.html?coin=" + encodeURIComponent(badge.dataset.ticker);
         return;
       }
       const ca = e.target.closest(".market-ca[data-ca]");

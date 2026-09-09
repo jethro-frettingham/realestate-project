@@ -56,6 +56,11 @@ const PROPERTY_COIN_ABI = [
   "function classTicker() view returns (string)",
   "function balanceOf(address) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
+  "function totalSupply() view returns (uint256)",
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "event Minted(address indexed who, uint256 ethIn, uint256 coinOut)",
+  "event Redeemed(address indexed who, uint256 coinIn, uint256 ethOut)",
 ];
 
 /* ---------------------------------------------------------------------- */
@@ -219,6 +224,40 @@ async function readPropertyCoin(coinAddress, account) {
   const weiPerUnit = await coin.weiPerUnit();
   const balance = account ? await coin.balanceOf(account) : 0n;
   return { weiPerUnit, balance };
+}
+
+/** Full live state for one property-class coin's own page: rate, current
+ *  supply, and the ETH actually held as reserves (a plain balance check —
+ *  the coin is fully collateralized by construction, so this should
+ *  always equal supply × rate). */
+async function fetchPropertyCoinFullState(coinAddress) {
+  const deployment = await loadDeployment();
+  if (!deployment || typeof ethers === "undefined") return null;
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, provider);
+  const [name, symbol, weiPerUnit, totalSupply, ethReserves] = await Promise.all([
+    coin.name(), coin.symbol(), coin.weiPerUnit(), coin.totalSupply(), provider.getBalance(coinAddress),
+  ]);
+  return { name, symbol, weiPerUnit, totalSupply, ethReserves };
+}
+
+/** Every Minted/Redeemed event for one property-class coin, newest first —
+ *  this coin's equivalent of a market's Trade history. */
+async function fetchPropertyCoinActivity(coinAddress, maxResults = 50) {
+  const deployment = await loadDeployment();
+  if (!deployment || typeof ethers === "undefined") return [];
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, provider);
+  const [mints, redeems] = await Promise.all([
+    coin.queryFilter(coin.filters.Minted(), 0, "latest"),
+    coin.queryFilter(coin.filters.Redeemed(), 0, "latest"),
+  ]);
+  const all = [
+    ...mints.map((e) => ({ type: "Mint", who: e.args.who, ethAmount: e.args.ethIn, coinAmount: e.args.coinOut, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
+    ...redeems.map((e) => ({ type: "Redeem", who: e.args.who, ethAmount: e.args.ethOut, coinAmount: e.args.coinIn, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
+  ];
+  all.sort((a, b) => (a.blockNumber - b.blockNumber) || (a.logIndex - b.logIndex));
+  return all.slice(-maxResults).reverse();
 }
 
 /* ---------------------------------------------------------------------- */
@@ -608,7 +647,7 @@ function quoteBuy(ethIn, tokensSoldSoFar) {
 window.Parcel = {
   parcelGlyph, renderClassTile, classDisplayName, virtualReserves, quoteBuy, CURVE,
   connectWallet, loadDeployment, submitLaunch, ensureRobinhoodTestnet, RH_CHAIN,
-  mintPropertyCoin, redeemPropertyCoin, readPropertyCoin,
+  mintPropertyCoin, redeemPropertyCoin, readPropertyCoin, fetchPropertyCoinFullState, fetchPropertyCoinActivity,
   fetchAllLaunches, fetchLaunchByCurve, decodeMetadata, escapeHtml, resizeImageToDataUri,
   fetchCurveState, fetchRecentTrades, fetchMarketVolumeEth, buyOnCurve, buyOnCurveWithCoin, sellOnCurve,
 };

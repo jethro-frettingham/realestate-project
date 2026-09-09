@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coin · Parcel</title>
+<meta name="description" content="A property-class coin on Parcel — fixed rate, fully collateralized, mint/redeem against ETH.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="4" y="4" width="22" height="22"/>
+        <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
+        <circle cx="19" cy="19" r="3.4"/>
+      </svg>
+      <span>Parcel<span class="sub">on Robinhood Chain Testnet</span></span>
+    </a>
+    <nav class="primary">
+      <a href="index.html">Markets</a>
+      <a href="classes.html" aria-current="page">Property classes</a>
+      <a href="launch.html">Launch</a>
+      <a href="docs.html">How it works</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span class="chain-tag">Robinhood Chain Testnet</span>
+      <button class="btn-connect" data-connect>Connect wallet</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="section" style="padding-top:48px; border-bottom:none;">
+    <div class="wrap" id="no-coin-notice" style="display:none;">
+      <p class="lede">No coin specified. Go back to <a href="classes.html" style="color:var(--brass-bright);">Property classes</a> and pick one, or check <code>?coin=TICKER</code> is in the URL.</p>
+    </div>
+
+    <div class="wrap" id="coin-wrap" style="display:none;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div class="market-icon" id="co-icon" style="width:52px; height:52px; overflow:hidden; flex:none;"></div>
+        <div>
+          <span class="eyebrow-tag" id="co-tag">Loading…</span>
+          <h1 style="margin-top:8px;" id="co-name">—</h1>
+        </div>
+      </div>
+      <p class="lede" id="co-sub">—</p>
+      <div style="display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:13px; color:var(--paper-dim); margin-top:-8px; margin-bottom:24px;">
+        <span>CA:</span>
+        <span id="co-ca-top" style="cursor:pointer; color:var(--brass-bright);" title="Click to copy">—</span>
+      </div>
+
+      <div class="launch-grid" style="margin-top:36px;">
+        <div>
+          <div class="spec" style="margin-bottom:24px;">
+            <div class="spec-row"><span class="k">Fixed rate</span><span class="v brass" id="co-rate">—</span></div>
+            <div class="spec-row"><span class="k">≈ USD (static est.)</span><span class="v" id="co-rate-usd">—</span></div>
+            <div class="spec-row"><span class="k">Total supply</span><span class="v" id="co-supply">—</span></div>
+            <div class="spec-row"><span class="k">ETH reserves locked</span><span class="v" id="co-reserves">—</span></div>
+            <div class="spec-row"><span class="k">Reserves value</span><span class="v" id="co-reserves-usd">—</span></div>
+          </div>
+
+          <h3>Supply</h3>
+          <p class="hint" style="margin-bottom:12px;">
+            This coin's rate is fixed — it never moves, so there's no price to chart. What can move is how much of it exists:
+            this plots total supply after every mint and redeem, from this coin's own on-chain events.
+          </p>
+          <div id="co-chart" style="margin-bottom:28px; min-height:60px;" class="sub">Loading supply history…</div>
+
+          <h3>Recent activity</h3>
+          <p class="hint" style="margin-bottom:12px;">Every mint and redeem, straight from this coin's own events.</p>
+          <div id="co-activity" class="spec"></div>
+        </div>
+
+        <aside class="panel">
+          <h3>Trade</h3>
+
+          <div class="fee-picker" style="margin: 14px 0 18px;">
+            <button type="button" class="fee-opt" id="co-buy-tab" aria-pressed="true">Buy</button>
+            <button type="button" class="fee-opt" id="co-sell-tab" aria-pressed="false">Sell</button>
+          </div>
+
+          <div class="field">
+            <label id="co-amount-label" for="co-amount">Pay with ETH</label>
+            <input type="text" id="co-amount" placeholder="0.00" inputmode="decimal">
+            <p class="hint" id="co-preview">—</p>
+          </div>
+
+          <div class="disclosure" id="co-disclosure">Checking for a live deployment…</div>
+          <div id="co-status" style="display:none; margin-top:12px; font-size:12.5px; font-family:var(--font-mono);"></div>
+
+          <button type="button" class="btn-connect" id="co-action" style="width:100%; margin-top:16px;">Connect wallet to trade</button>
+        </aside>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts.</span>
+    <span><a href="docs.html">How it works</a> · <a href="classes.html">Property classes</a></span>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="assets/classes.js"></script>
+<script src="assets/app.js"></script>
+<script>
+  const requestedTicker = new URLSearchParams(location.search).get("coin");
+  const GENERIC_COIN_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.2c0-1.2 1.1-2 2.5-2s2.5.8 2.5 2c0 2.6-5 1.4-5 4 0 1.2 1.1 2 2.5 2s2.5-.8 2.5-2"/></svg>`;
+
+  let deployment = null;
+  let coinAddress = null;
+  let classEntry = null; // PROPERTY_CLASSES entry, or a synthetic one for USDG
+  let state = null; // fetchPropertyCoinFullState result
+  let mode = "buy";
+  let walletConnected = false;
+
+  const actionBtn = document.getElementById("co-action");
+  const statusEl = document.getElementById("co-status");
+  const amountEl = document.getElementById("co-amount");
+
+  function setStatus(msg, isError) {
+    statusEl.style.display = msg ? "block" : "none";
+    statusEl.innerHTML = msg || "";
+    statusEl.style.color = isError ? "var(--flag)" : "var(--brass-bright)";
+  }
+  function txLink(hash) {
+    return `<a href="${deployment.explorer}/tx/${hash}" target="_blank" rel="noopener" style="color:inherit;">${hash.slice(0, 10)}…${hash.slice(-6)}</a>`;
+  }
+  function fmtEth(wei) { return parseFloat(ethers.formatEther(wei)).toLocaleString(undefined, { maximumFractionDigits: 6 }); }
+  function fmtCoin(units) { return parseFloat(ethers.formatEther(units)).toLocaleString(undefined, { maximumFractionDigits: 4 }); }
+
+  async function load() {
+    if (!requestedTicker) {
+      document.getElementById("no-coin-notice").style.display = "block";
+      return;
+    }
+    document.getElementById("coin-wrap").style.display = "block";
+
+    deployment = await Parcel.loadDeployment();
+    const disclosureEl = document.getElementById("co-disclosure");
+    if (!deployment) {
+      disclosureEl.innerHTML = `<strong>Preview mode.</strong> No live deployment found.`;
+      return;
+    }
+    disclosureEl.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong> Buying mints by sending ETH; selling redeems back to ETH — both at this coin's fixed rate, no slippage on the rate itself.`;
+
+    const ticker = requestedTicker.toUpperCase();
+    coinAddress = ticker === "USDG" ? deployment.usdg : (deployment.classCoins || {})[ticker];
+    classEntry = ticker === "USDG"
+      ? { ticker: "USDG", displayName: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1, at the static ETH/USD assumption", tier: "estate", glyph: null }
+      : PROPERTY_CLASSES.find((c) => c.ticker === ticker);
+
+    if (!coinAddress || !classEntry) {
+      setStatus("Unknown or undeployed coin: " + Parcel.escapeHtml(ticker), true);
+      return;
+    }
+
+    document.getElementById("co-icon").innerHTML = classEntry.glyph ? parcelGlyph(classEntry.glyph) : GENERIC_COIN_GLYPH;
+    document.getElementById("co-tag").textContent = classEntry.ticker;
+    document.getElementById("co-name").textContent = classEntry.displayName;
+    document.getElementById("co-sub").textContent = classEntry.label + " — " + classEntry.unit + ". Fully collateralized: minting only ever issues coin backed by ETH just deposited.";
+    document.getElementById("co-amount-label").textContent = "Pay with ETH";
+
+    try {
+      state = await Parcel.fetchPropertyCoinFullState(coinAddress);
+    } catch (err) {
+      console.error(err);
+      setStatus("Couldn't load this coin — check the deployment.", true);
+      return;
+    }
+    if (!state) return;
+
+    const rateEth = Number(ethers.formatEther(state.weiPerUnit));
+    const rateUsd = rateEth * deployment.ethUsd;
+    const supplyNum = Number(ethers.formatEther(state.totalSupply));
+    const reservesEth = Number(ethers.formatEther(state.ethReserves));
+    const reservesUsd = reservesEth * deployment.ethUsd;
+
+    document.getElementById("co-rate").textContent = rateEth.toLocaleString(undefined, { maximumFractionDigits: 6 }) + " ETH / " + classEntry.displayName;
+    document.getElementById("co-rate-usd").textContent = "$" + rateUsd.toLocaleString(undefined, { maximumFractionDigits: rateUsd < 10 ? 2 : 0 });
+    document.getElementById("co-supply").textContent = supplyNum.toLocaleString(undefined, { maximumFractionDigits: 2 }) + " " + classEntry.ticker;
+    document.getElementById("co-reserves").textContent = reservesEth.toLocaleString(undefined, { maximumFractionDigits: 4 }) + " ETH";
+    document.getElementById("co-reserves-usd").textContent = "$" + reservesUsd.toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+    const caTopEl = document.getElementById("co-ca-top");
+    const shortCa = coinAddress.slice(0, 10) + "…" + coinAddress.slice(-6);
+    caTopEl.textContent = shortCa;
+    caTopEl.addEventListener("click", () => {
+      navigator.clipboard.writeText(coinAddress).then(() => {
+        caTopEl.textContent = "Copied!";
+        setTimeout(() => { caTopEl.textContent = shortCa; }, 1200);
+      });
+    });
+
+    loadActivityAndChart();
+  }
+
+  async function loadActivityAndChart() {
+    const activityEl = document.getElementById("co-activity");
+    const chartEl = document.getElementById("co-chart");
+    let activity;
+    try {
+      activity = await Parcel.fetchPropertyCoinActivity(coinAddress, 300);
+    } catch (err) {
+      console.error(err);
+      activityEl.innerHTML = `<div class="spec-row"><span class="k">Couldn't load activity</span></div>`;
+      chartEl.textContent = "Couldn't load supply history.";
+      return;
+    }
+
+    if (activity.length === 0) {
+      activityEl.innerHTML = `<div class="spec-row"><span class="k">No mints or redeems yet</span></div>`;
+      chartEl.innerHTML = buildEmptyChartSvg("No activity yet");
+      return;
+    }
+
+    activityEl.innerHTML = activity.slice(0, 30).map((a) => `<div class="spec-row">
+        <span class="k">${a.type} · ${a.who.slice(0,6)}…${a.who.slice(-4)}</span>
+        <span class="v"><a href="${deployment.explorer}/tx/${a.txHash}" target="_blank" rel="noopener" style="color:inherit;">${fmtEth(a.ethAmount)} ETH ${a.type === "Mint" ? "→" : "←"} ${fmtCoin(a.coinAmount)}</a></span>
+      </div>`).join("");
+
+    // Running total supply after each event, oldest first.
+    const chronological = activity.slice().reverse();
+    let running = 0;
+    const points = chronological.map((a) => {
+      const delta = Number(ethers.formatEther(a.coinAmount));
+      running += a.type === "Mint" ? delta : -delta;
+      return running;
+    });
+
+    if (points.length < 2) {
+      chartEl.innerHTML = buildEmptyChartSvg("One event so far — need at least two to plot a line");
+      return;
+    }
+    chartEl.innerHTML = buildSupplyChartSvg(points);
+  }
+
+  function buildEmptyChartSvg(caption) {
+    const w = 560, h = 160, pad = 8;
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block; overflow:visible;">
+        <line x1="${pad}" y1="${h / 2}" x2="${w - pad}" y2="${h / 2}" style="stroke:var(--line-cyan-dim); stroke-width:1; stroke-dasharray:4 4;"/>
+      </svg>
+      <div style="text-align:center; font-family:var(--font-mono); font-size:11px; color:var(--paper-dim); margin-top:6px;">${caption}</div>`;
+  }
+
+  function buildSupplyChartSvg(points) {
+    const w = 560, h = 160, pad = 8;
+    const minP = Math.min(0, ...points), maxP = Math.max(...points);
+    const range = (maxP - minP) || 1;
+    const xStep = (w - pad * 2) / (points.length - 1);
+    const xFor = (i) => pad + i * xStep;
+    const yFor = (p) => h - pad - ((p - minP) / range) * (h - pad * 2);
+    const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(p).toFixed(1)}`).join(" ");
+    const areaPath = linePath + ` L ${xFor(points.length - 1).toFixed(1)} ${h - pad} L ${xFor(0).toFixed(1)} ${h - pad} Z`;
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block; overflow:visible;">
+        <path d="${areaPath}" style="fill:rgba(201,154,70,0.14); stroke:none;"/>
+        <path d="${linePath}" style="fill:none; stroke:var(--brass-bright); stroke-width:1.6; stroke-linejoin:round;"/>
+      </svg>
+      <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; color:var(--paper-dim); margin-top:6px;">
+        <span>${points.length} events plotted</span>
+        <span>supply now: ${points[points.length - 1].toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+      </div>`;
+  }
+
+  function setMode(newMode) {
+    mode = newMode;
+    document.getElementById("co-buy-tab").setAttribute("aria-pressed", mode === "buy");
+    document.getElementById("co-sell-tab").setAttribute("aria-pressed", mode === "sell");
+    document.getElementById("co-amount-label").textContent = mode === "buy" ? "Pay with ETH" : "Sell " + (classEntry ? classEntry.displayName : "coin");
+    updatePreview();
+  }
+  document.getElementById("co-buy-tab").addEventListener("click", () => setMode("buy"));
+  document.getElementById("co-sell-tab").addEventListener("click", () => setMode("sell"));
+
+  function updatePreview() {
+    const amt = parseFloat(amountEl.value);
+    const previewEl = document.getElementById("co-preview");
+    if (!state || !amt || amt <= 0) { previewEl.textContent = "—"; return; }
+    const rate = Number(ethers.formatEther(state.weiPerUnit));
+    if (mode === "buy") {
+      previewEl.textContent = "≈ " + (amt / rate).toLocaleString(undefined, { maximumFractionDigits: 6 }) + " " + classEntry.ticker;
+    } else {
+      previewEl.textContent = "≈ " + (amt * rate).toLocaleString(undefined, { maximumFractionDigits: 6 }) + " ETH";
+    }
+  }
+  amountEl.addEventListener("input", updatePreview);
+
+  actionBtn.addEventListener("click", async () => {
+    if (!walletConnected) {
+      await Parcel.connectWallet();
+      return;
+    }
+    if (!coinAddress) { setStatus("This coin isn't deployed yet.", true); return; }
+    const amt = amountEl.value.trim();
+    if (!amt || parseFloat(amt) <= 0) { setStatus("Enter an amount.", true); return; }
+
+    actionBtn.disabled = true;
+    try {
+      setStatus("Confirm in your wallet…");
+      let result;
+      if (mode === "buy") {
+        result = await Parcel.mintPropertyCoin(coinAddress, ethers.parseEther(amt));
+      } else {
+        result = await Parcel.redeemPropertyCoin(coinAddress, ethers.parseEther(amt));
+      }
+      setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + txLink(result.txHash));
+      amountEl.value = "";
+      updatePreview();
+      state = await Parcel.fetchPropertyCoinFullState(coinAddress);
+      loadActivityAndChart();
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || String(err), true);
+    } finally {
+      actionBtn.disabled = false;
+    }
+  });
+
+  document.addEventListener("parcel:connected", () => {
+    walletConnected = true;
+    actionBtn.textContent = mode === "buy" ? "Buy" : "Sell";
+  });
+
+  load();
+</script>
+</body>
+</html>
