@@ -109,7 +109,7 @@
       <div class="section-head">
         <div>
           <h2>Live markets</h2>
-          <p>Every launch, read straight from the chain — no indexer, no database. FDV, migration progress, and volume are all live view calls and log scans, not a database.</p>
+          <p>Every launch, read straight from the chain — no indexer, no database. Market cap, migration progress, and volume are all live view calls and log scans, not a database.</p>
         </div>
         <a class="btn btn-outline" href="launch.html">Launch a coin</a>
       </div>
@@ -226,14 +226,14 @@
           Parcel.fetchMarketVolumeEth(l.curve),
         ]);
         const spot = Number(ethers.formatEther(state.virtualEth)) / Number(ethers.formatEther(state.virtualToken));
-        const fdvEth = spot * Number(ethers.formatEther(state.totalSupply));
+        const fdvUsd = spot * Number(ethers.formatEther(state.totalSupply)) * deployment.ethUsd;
         const pct = Number(state.tokensSold * 10000n / state.curveSupply) / 100;
         const volumeEth = Number(ethers.formatEther(volumeWei)); // volumeWei is raw wei — convert before display
         return {
           curve: l.curve, name: meta.name || state.name || "Untitled",
           ticker: state.symbol, propertyClass: state.propertyClass,
           createdAt: l.createdAt, migrated: state.migrated, pct,
-          fdvEth, volumeEth,
+          fdvUsd, volumeEth,
         };
       }));
 
@@ -273,7 +273,7 @@
         ? `<span class="market-badge">${escapeHtml(m.propertyClass)}</span>`
         : `<span class="market-badge no-class">ETH only</span>`;
       const pctClamped = Math.min(100, Math.max(0, m.pct));
-      const fdvText = "Ξ" + m.fdvEth.toLocaleString(undefined, { maximumFractionDigits: 3 });
+      const fdvText = "$" + m.fdvUsd.toLocaleString(undefined, { maximumFractionDigits: 0 });
       const volText = m.volumeEth.toLocaleString(undefined, { maximumFractionDigits: 3 }) + " ETH";
       const status = m.migrated
         ? `<span class="migrated-text">Migrated</span>`
@@ -289,7 +289,7 @@
           </div>
           ${badge}
         </div>
-        <div class="market-fdv-label">FDV (in ETH terms)</div>
+        <div class="market-fdv-label">Market cap · static ETH/USD est.</div>
         <div class="market-fdv">${fdvText}</div>
         <div class="market-progress-track" style="margin-top:12px;">
           <div class="market-progress-fill${m.migrated ? " migrated" : ""}" style="width:${m.migrated ? 100 : pctClamped}%;"></div>
