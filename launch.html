@@ -139,7 +139,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts — see <a href="DEPLOY.md">DEPLOY.md</a>.</span>
+    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts.</span>
     <span><a href="docs.html">How it works</a> · <a href="classes.html">Property classes</a></span>
   </div>
 </footer>
@@ -151,7 +151,7 @@
   const picker = document.getElementById("class-picker");
   picker.innerHTML = `<button type="button" class="class-opt" data-ticker="" aria-pressed="true">None (ETH only)</button>` +
     PROPERTY_CLASSES.map((c) =>
-      `<button type="button" class="class-opt" data-ticker="${c.ticker}" aria-pressed="false">${c.ticker}</button>`
+      `<button type="button" class="class-opt" data-ticker="${c.ticker}" aria-pressed="false">${c.displayName}</button>`
     ).join("");
 
   let selectedClass = null; // null = no class picked (default); otherwise a PROPERTY_CLASSES entry
@@ -186,24 +186,23 @@
     } else {
       disclosure.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet at
         <code>deployments/testnet.json</code>. The terms below are real bonding-curve math, but
-        "Launch" won't submit a transaction until the contracts are deployed — see
-        <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>.`;
+        "Launch" won't submit a transaction until the contracts are deployed.`;
     }
   }
 
   function updateOverview() {
     const ovPairEl = document.getElementById("ov-pair");
     if (selectedClass) {
-      ovPairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(selectedClass.ticker)}" style="color:inherit;" target="_blank" rel="noopener">${selectedClass.ticker}</a>`;
+      ovPairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(selectedClass.ticker)}" style="color:inherit;" target="_blank" rel="noopener">${selectedClass.displayName}</a>`;
     } else {
       ovPairEl.textContent = "None";
     }
     document.getElementById("panel-sub").textContent = selectedClass
-      ? selectedClass.label + " — " + selectedClass.unit + ". Migrates into two pools: TOKEN/ETH and TOKEN/" + selectedClass.ticker + "."
+      ? selectedClass.label + " — " + selectedClass.unit + ". Migrates into two pools: TOKEN/ETH and TOKEN/" + selectedClass.displayName + "."
       : "No class picked — migrates into a single TOKEN/ETH pool.";
     document.getElementById("ov-fee").textContent = selectedFee + "%";
     document.getElementById("ov-pools").textContent = selectedClass
-      ? "2 (TOKEN/ETH + TOKEN/" + selectedClass.ticker + ")"
+      ? "2 (TOKEN/ETH + TOKEN/" + selectedClass.displayName + ")"
       : "1 (TOKEN/ETH)";
     recalcReceive();
   }
@@ -297,7 +296,7 @@
     }
 
     if (!deployment) {
-      setStatus("No live deployment yet — see DEPLOY.md.", true);
+      setStatus("No live deployment yet.", true);
       return;
     }
     const name = document.getElementById("name").value.trim();

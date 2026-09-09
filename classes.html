@@ -86,7 +86,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts — see <a href="DEPLOY.md">DEPLOY.md</a>.</span>
+    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts.</span>
     <span><a href="docs.html">How it works</a> · <a href="launch.html">Launch</a></span>
   </div>
 </footer>
@@ -95,7 +95,7 @@
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
 <script>
-  const USDG_TILE = { ticker: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1, at the same static ETH/USD assumption used for the classes", tier: "estate", glyph: { roof: "flat", w: 30, h: 30, windows: 1 } };
+  const USDG_TILE = { ticker: "USDG", displayName: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1, at the same static ETH/USD assumption used for the classes", tier: "estate", glyph: { roof: "flat", w: 30, h: 30, windows: 1 } };
   const ALL_TRADEABLE = [USDG_TILE, ...PROPERTY_CLASSES];
 
   document.getElementById("all-classes").innerHTML =
@@ -107,6 +107,25 @@
   let walletConnected = false;
   let coinAddress = null;
   let coinDecimalsRate = null; // weiPerUnit, bigint
+
+  async function loadTilePrices() {
+    deployment = await Parcel.loadDeployment();
+    if (!deployment) return;
+    await Promise.all(ALL_TRADEABLE.map(async (c) => {
+      const addr = c.ticker === "USDG" ? deployment.usdg : (deployment.classCoins || {})[c.ticker];
+      const el = document.querySelector(`.tile-price[data-price-for="${c.ticker}"]`);
+      if (!addr || !el) return;
+      try {
+        const info = await Parcel.readPropertyCoin(addr, null);
+        const usd = Number(ethers.formatEther(info.weiPerUnit)) * deployment.ethUsd;
+        el.textContent = "≈ $" + usd.toLocaleString(undefined, { maximumFractionDigits: usd < 10 ? 2 : 0 }) + " static est.";
+      } catch (err) {
+        console.error(err);
+        el.textContent = "";
+      }
+    }));
+  }
+  loadTilePrices();
 
   const actionBtn = document.getElementById("tr-action");
   const statusEl = document.getElementById("tr-status");
@@ -135,15 +154,14 @@
         Buying mints the coin by sending ETH; selling redeems it back to ETH. Both happen at the
         coin's fixed rate — there's no slippage on the rate itself, only on gas and the amount you type.`;
     } else {
-      el.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet — see
-        <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>. Rates shown are illustrative only.`;
+      el.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet. Rates shown are illustrative only.`;
     }
   }
 
   async function selectCoin(entry) {
     selected = entry;
     document.getElementById("panel-sub").textContent = entry.label;
-    document.getElementById("tr-ticker").textContent = entry.ticker;
+    document.getElementById("tr-ticker").textContent = entry.displayName || entry.ticker;
     document.getElementById("tr-rate").textContent = "Loading…";
     document.getElementById("tr-balance").textContent = "—";
     coinAddress = addressFor(entry.ticker);
@@ -182,7 +200,7 @@
     document.getElementById("tr-sell-tab").setAttribute("aria-pressed", mode === "sell");
     document.getElementById("tr-amount-label").textContent = mode === "buy"
       ? "Pay with ETH"
-      : "Sell " + (selected ? selected.ticker : "coin");
+      : "Sell " + (selected ? (selected.displayName || selected.ticker) : "coin");
     updatePreview();
   }
   document.getElementById("tr-buy-tab").addEventListener("click", () => setMode("buy"));
@@ -194,7 +212,7 @@
     if (!selected || !amt || amt <= 0 || !coinDecimalsRate) { previewEl.textContent = "—"; return; }
     if (mode === "buy") {
       const coinOut = amt / parseFloat(ethers.formatEther(coinDecimalsRate));
-      previewEl.textContent = "≈ " + coinOut.toLocaleString(undefined, { maximumFractionDigits: 6 }) + " " + selected.ticker;
+      previewEl.textContent = "≈ " + coinOut.toLocaleString(undefined, { maximumFractionDigits: 6 }) + " " + (selected.displayName || selected.ticker);
     } else {
       const ethOut = amt * parseFloat(ethers.formatEther(coinDecimalsRate));
       previewEl.textContent = "≈ " + ethOut.toLocaleString(undefined, { maximumFractionDigits: 6 }) + " ETH";

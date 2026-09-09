@@ -163,7 +163,7 @@
   <section class="section" id="gaps" style="border-bottom:none;">
     <div class="wrap">
       <h2>What this repo doesn't do yet</h2>
-      <p>The contracts can be deployed for real to Robinhood Chain Testnet (see <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>) and this site will pick that up automatically. Even deployed, some things are still simplified:</p>
+      <p>The contracts can be deployed for real to Robinhood Chain Testnet, and this site picks that up automatically. Even deployed, some things are still simplified:</p>
       <ul style="color:var(--paper-dim); max-width:64ch;">
         <li>The contracts are unaudited reference code — testnet only. Nothing here should hold mainnet funds as-is.</li>
         <li>Every property-class coin's rate is <strong>static</strong> — fixed once at deploy time, using a flat assumed ETH/USD rate to pick starting numbers. It never updates. That's fine for a demo but wrong for anything real: a real deployment needs a live price feed behind each class, and real USDG should just be the actual USDG stablecoin rather than a static-rate stand-in (a fixed rate is a much worse problem for something claiming to be a stablecoin than for a property class coin).</li>
@@ -191,7 +191,7 @@
   Parcel.loadDeployment().then((d) => {
     const panel = document.getElementById("deployment-panel");
     if (!d) {
-      document.getElementById("dep-status").textContent = "Not deployed yet — see DEPLOY.md";
+      document.getElementById("dep-status").textContent = "Not deployed yet";
       return;
     }
     const row = (k, v, link) => `<div class="spec-row"><span class="k">${k}</span><span class="v brass">${link ? `<a href="${link}" target="_blank" rel="noopener" style="color:inherit;">${v}</a>` : v}</span></div>`;
