@@ -180,7 +180,7 @@
       : "No property class — migrates into a single ETH pool.";
     const pairEl = document.getElementById("mk-pair");
     if (state.propertyClass) {
-      pairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(state.propertyClass)}" style="color:inherit;">${Parcel.classDisplayName(state.propertyClass)}</a>`;
+      pairEl.innerHTML = `<a href="coin.html?coin=${encodeURIComponent(state.propertyClass)}" style="color:inherit;">${Parcel.classDisplayName(state.propertyClass)}</a>`;
     } else {
       pairEl.textContent = "ETH only";
     }

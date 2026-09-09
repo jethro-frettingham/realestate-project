@@ -193,7 +193,7 @@
   function updateOverview() {
     const ovPairEl = document.getElementById("ov-pair");
     if (selectedClass) {
-      ovPairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(selectedClass.ticker)}" style="color:inherit;" target="_blank" rel="noopener">${selectedClass.displayName}</a>`;
+      ovPairEl.innerHTML = `<a href="coin.html?coin=${encodeURIComponent(selectedClass.ticker)}" style="color:inherit;" target="_blank" rel="noopener">${selectedClass.displayName}</a>`;
     } else {
       ovPairEl.textContent = "None";
     }

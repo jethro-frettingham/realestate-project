@@ -61,6 +61,7 @@
             <div class="spec-row"><span class="k">Coin</span><span class="v brass" id="tr-ticker">—</span></div>
             <div class="spec-row"><span class="k">Fixed rate</span><span class="v" id="tr-rate">—</span></div>
             <div class="spec-row"><span class="k">Your balance</span><span class="v" id="tr-balance">—</span></div>
+            <div class="spec-row"><span class="k"></span><span class="v" id="tr-full-page"></span></div>
           </div>
 
           <div class="fee-picker" style="margin-bottom:18px;">
@@ -164,6 +165,7 @@
     document.getElementById("tr-ticker").textContent = entry.displayName || entry.ticker;
     document.getElementById("tr-rate").textContent = "Loading…";
     document.getElementById("tr-balance").textContent = "—";
+    document.getElementById("tr-full-page").innerHTML = `<a href="coin.html?coin=${encodeURIComponent(entry.ticker)}" style="color:var(--brass-bright);">Full page with chart & activity →</a>`;
     coinAddress = addressFor(entry.ticker);
     updatePreview();
 
