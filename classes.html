@@ -55,7 +55,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts.</span>
+    <span>Parcel — Robinhood Chain Testnet.</span>
     <span><a href="docs.html">How it works</a> · <a href="launch.html">Launch</a></span>
   </div>
 </footer>
@@ -64,7 +64,7 @@
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
 <script>
-  const USDG_TILE = { ticker: "USDG", displayName: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1, at the same static ETH/USD assumption used for the classes", tier: "estate", glyph: { roof: "flat", w: 30, h: 30, windows: 1 } };
+  const USDG_TILE = { ticker: "USDG", displayName: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1", tier: "estate", glyph: { roof: "flat", w: 30, h: 30, windows: 1 } };
   const ALL_TRADEABLE = [USDG_TILE, ...PROPERTY_CLASSES];
 
   document.getElementById("all-classes").innerHTML =
@@ -91,7 +91,7 @@
       try {
         const info = await Parcel.readPropertyCoin(addr, null);
         const usd = Number(ethers.formatEther(info.weiPerUnit)) * deployment.ethUsd;
-        el.textContent = "≈ $" + usd.toLocaleString(undefined, { maximumFractionDigits: usd < 10 ? 2 : 0 }) + " static est.";
+        el.textContent = "≈ $" + usd.toLocaleString(undefined, { maximumFractionDigits: usd < 10 ? 2 : 0 }) + " est.";
       } catch (err) {
         console.error(err);
         el.textContent = "";

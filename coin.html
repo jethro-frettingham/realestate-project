@@ -58,7 +58,7 @@
         <div>
           <div class="spec" style="margin-bottom:24px;">
             <div class="spec-row"><span class="k">Fixed rate</span><span class="v brass" id="co-rate">—</span></div>
-            <div class="spec-row"><span class="k">≈ USD (static est.)</span><span class="v" id="co-rate-usd">—</span></div>
+            <div class="spec-row"><span class="k">≈ USD</span><span class="v" id="co-rate-usd">—</span></div>
             <div class="spec-row"><span class="k">Total supply</span><span class="v" id="co-supply">—</span></div>
             <div class="spec-row"><span class="k">ETH reserves locked</span><span class="v" id="co-reserves">—</span></div>
             <div class="spec-row"><span class="k">Reserves value</span><span class="v" id="co-reserves-usd">—</span></div>
@@ -102,7 +102,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts.</span>
+    <span>Parcel — Robinhood Chain Testnet.</span>
     <span><a href="docs.html">How it works</a> · <a href="classes.html">Property classes</a></span>
   </div>
 </footer>
@@ -154,7 +154,7 @@
     const ticker = requestedTicker.toUpperCase();
     coinAddress = ticker === "USDG" ? deployment.usdg : (deployment.classCoins || {})[ticker];
     classEntry = ticker === "USDG"
-      ? { ticker: "USDG", displayName: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1, at the static ETH/USD assumption", tier: "estate", glyph: null }
+      ? { ticker: "USDG", displayName: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1", tier: "estate", glyph: null }
       : PROPERTY_CLASSES.find((c) => c.ticker === ticker);
 
     if (!coinAddress || !classEntry) {
