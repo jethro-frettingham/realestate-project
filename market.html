@@ -49,6 +49,10 @@
         </div>
       </div>
       <p class="lede" id="mk-sub">—</p>
+      <div style="display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:13px; color:var(--paper-dim); margin-top:-8px; margin-bottom:24px;">
+        <span>CA:</span>
+        <span id="mk-ca-top" style="cursor:pointer; color:var(--brass-bright);" title="Click to copy">—</span>
+      </div>
 
       <div class="launch-grid" style="margin-top:36px;">
         <div>
@@ -104,7 +108,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts — see <a href="DEPLOY.md">DEPLOY.md</a>.</span>
+    <span>Parcel — Robinhood Chain Testnet. Unaudited contracts.</span>
     <span><a href="docs.html">How it works</a> · <a href="index.html">Markets</a></span>
   </div>
 </footer>
@@ -155,7 +159,7 @@
     deployment = await Parcel.loadDeployment();
     const disclosureEl = document.getElementById("mk-disclosure");
     if (!deployment) {
-      disclosureEl.innerHTML = `<strong>Preview mode.</strong> No live deployment found — see <a href="DEPLOY.md" style="color:var(--brass-bright);">DEPLOY.md</a>.`;
+      disclosureEl.innerHTML = `<strong>Preview mode.</strong> No live deployment found.`;
       return;
     }
     disclosureEl.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong> Buying and selling submit real transactions to this curve.`;
@@ -172,11 +176,11 @@
     document.getElementById("mk-tag").textContent = state.symbol;
     document.getElementById("mk-name").textContent = state.name;
     document.getElementById("mk-sub").textContent = state.propertyClass
-      ? "Tethered to " + state.propertyClass + " — migrates into two pools."
+      ? "Tethered to " + Parcel.classDisplayName(state.propertyClass) + " — migrates into two pools."
       : "No property class — migrates into a single ETH pool.";
     const pairEl = document.getElementById("mk-pair");
     if (state.propertyClass) {
-      pairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(state.propertyClass)}" style="color:inherit;">${state.propertyClass}</a>`;
+      pairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(state.propertyClass)}" style="color:inherit;">${Parcel.classDisplayName(state.propertyClass)}</a>`;
     } else {
       pairEl.textContent = "ETH only";
     }
@@ -208,6 +212,16 @@
     const curveLink = document.getElementById("mk-curve-link");
     curveLink.innerHTML = `<a href="${deployment.explorer}/address/${curveAddress}" target="_blank" rel="noopener" style="color:inherit;">${curveAddress.slice(0,10)}…${curveAddress.slice(-6)}</a>`;
 
+    const caTopEl = document.getElementById("mk-ca-top");
+    const shortCa = state.tokenAddr.slice(0, 10) + "…" + state.tokenAddr.slice(-6);
+    caTopEl.textContent = shortCa;
+    caTopEl.addEventListener("click", () => {
+      navigator.clipboard.writeText(state.tokenAddr).then(() => {
+        caTopEl.textContent = "Copied!";
+        setTimeout(() => { caTopEl.textContent = shortCa; }, 1200);
+      });
+    });
+
     if (state.migrated) {
       document.getElementById("mk-migrated-note").style.display = "block";
       document.getElementById("mk-mode-tabs").style.display = "none";
@@ -226,7 +240,7 @@
     for (const ticker of Object.keys(currencyAddresses)) {
       const opt = document.createElement("option");
       opt.value = ticker;
-      opt.textContent = ticker;
+      opt.textContent = Parcel.classDisplayName(ticker);
       currencyEl.appendChild(opt);
     }
     if (Object.keys(currencyAddresses).length === 0) {
@@ -331,7 +345,7 @@
       return;
     }
     const currency = currencyEl.value;
-    document.getElementById("mk-amount-label").textContent = "Pay with " + currency;
+    document.getElementById("mk-amount-label").textContent = "Pay with " + Parcel.classDisplayName(currency);
     currencyHintEl.style.display = currency === "ETH" ? "none" : "block";
   }
   currencyEl.addEventListener("change", () => { updateAmountLabel(); updatePreview(); });
