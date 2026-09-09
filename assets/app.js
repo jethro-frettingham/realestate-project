@@ -551,10 +551,21 @@ function renderClassTile(cls, { withGlyph = true } = {}) {
     <article class="tile" data-ticker="${cls.ticker}">
       <span class="tier tier-${cls.tier}">${TIER_LABEL[cls.tier]}</span>
       ${withGlyph ? `<div class="glyph">${parcelGlyph(cls.glyph)}</div>` : ""}
-      <div class="ticker">${cls.ticker}</div>
-      <div class="label">${cls.label}</div>
+      <div class="ticker">${cls.displayName || cls.ticker}</div>
+      <div class="label">${cls.label} <span style="font-family:var(--font-mono); opacity:0.55;">$${cls.ticker}</span></div>
       <div class="unit">${cls.unit}</div>
+      <div class="tile-price" data-price-for="${cls.ticker}" style="margin-top:8px; font-family:var(--font-mono); font-size:12px; color:var(--brass-bright);"></div>
     </article>`;
+}
+
+/** Looks up a property class's full display name from its on-chain
+ *  ticker (e.g. "HOUS" -> "House") for UI text. Falls back to the raw
+ *  ticker for USDG or anything not found, so it's always safe to call. */
+function classDisplayName(ticker) {
+  if (!ticker) return ticker;
+  if (ticker === "USDG") return "USDG";
+  const cls = PROPERTY_CLASSES.find((c) => c.ticker === ticker);
+  return cls ? cls.displayName : ticker;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -595,7 +606,7 @@ function quoteBuy(ethIn, tokensSoldSoFar) {
 }
 
 window.Parcel = {
-  parcelGlyph, renderClassTile, virtualReserves, quoteBuy, CURVE,
+  parcelGlyph, renderClassTile, classDisplayName, virtualReserves, quoteBuy, CURVE,
   connectWallet, loadDeployment, submitLaunch, ensureRobinhoodTestnet, RH_CHAIN,
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin,
   fetchAllLaunches, fetchLaunchByCurve, decodeMetadata, escapeHtml, resizeImageToDataUri,
