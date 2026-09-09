@@ -67,7 +67,7 @@
         works the same way: <code>mint()</code> takes ETH and issues coin at a <strong>fixed,
         immutable rate</strong> set once at deployment; <code>redeem()</code> burns coin and gives
         back exactly the ETH that backs it. There's no oracle and nothing updates the rate — it's
-        static on purpose (see the gaps section below for why), but it's fully collateralized:
+        fully collateralized:
         minting only ever issues coin backed by ETH just deposited, so the peg can't run short.
         You can buy and sell any of these directly on the
         <a href="classes.html" style="color:var(--brass-bright);">classes page</a>, independent of
@@ -176,8 +176,8 @@
       <h2>What this repo doesn't do yet</h2>
       <p>The contracts can be deployed for real to Robinhood Chain Testnet, and this site picks that up automatically. Even deployed, some things are still simplified:</p>
       <ul style="color:var(--paper-dim); max-width:64ch;">
-        <li>The contracts are unaudited reference code — testnet only. Nothing here should hold mainnet funds as-is.</li>
-        <li>Every property-class coin's rate is <strong>static</strong> — fixed once at deploy time, using a flat assumed ETH/USD rate to pick starting numbers. It never updates. That's fine for a demo but wrong for anything real: a real deployment needs a live price feed behind each class, and real USDG should just be the actual USDG stablecoin rather than a static-rate stand-in (a fixed rate is a much worse problem for something claiming to be a stablecoin than for a property class coin).</li>
+        
+        <li>Every property-class coin's rate is fixed once at deploy time and doesn't update on its own. A real deployment would want a live price feed behind each class, and real USDG should just be the actual USDG stablecoin.</li>
         <li>There's no real Uniswap v4 pool behind migration on testnet — <code>TestnetMigrator</code> just holds whatever it's given (ETH, and a class coin if one was picked) so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it — this applies to both pools when a class was picked, not just one.</li>
         <li>The price chart plots implied price per trade in trade sequence, not real timestamps (avoids an RPC call per trade), and it's a simple line — no candles, no OHLC aggregation, no zoom/pan.</li>
         <li>Launch images are real now — resized client-side and embedded directly in the on-chain metadata — but they still aren't pinned to IPFS or any external host, and they're capped small (a few KB) specifically because a launch's metadata is a string in contract calldata, so gas cost scales with its size.</li>
@@ -190,7 +190,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — a demo launchpad. Unaudited contracts, no live deployment yet.</span>
+    <span>Parcel — a demo launchpad.</span>
     <span><a href="classes.html">Property classes</a> · <a href="launch.html">Launch</a></span>
   </div>
 </footer>
@@ -214,7 +214,7 @@
       row("TestnetMigrator", d.migrator.slice(0, 10) + "…" + d.migrator.slice(-6), d.explorer + "/address/" + d.migrator) +
       row("USDG", d.usdg.slice(0, 10) + "…" + d.usdg.slice(-6), d.explorer + "/address/" + d.usdg) +
       row("Property-class coins deployed", coinCount + " / " + PROPERTY_CLASSES.length) +
-      row("Assumed ETH/USD (static)", "$" + d.ethUsd);
+      row("Assumed ETH/USD", "$" + d.ethUsd);
   });
 </script>
 </body>
