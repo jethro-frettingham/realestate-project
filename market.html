@@ -60,8 +60,12 @@
             <div class="spec-row"><span class="k">Curve contract</span><span class="v" id="mk-curve-link">—</span></div>
           </div>
 
+          <h3>Price</h3>
+          <p class="hint" style="margin-bottom:12px;">Implied price per trade, from this curve's own <code>Trade</code> events — plotted in trade order, not wall-clock time (no per-trade timestamp lookups).</p>
+          <div id="mk-chart" style="margin-bottom:28px; min-height:60px;" class="sub">Loading price history…</div>
+
           <h3>Recent trades</h3>
-          <p class="hint" style="margin-bottom:12px;">A trade list straight from this curve's <code>Trade</code> events — not a price chart. See <a href="docs.html#gaps" style="color:var(--brass-bright);">what this repo doesn't do yet</a>.</p>
+          <p class="hint" style="margin-bottom:12px;">The same trades the chart above is built from.</p>
           <div id="mk-trades" class="spec"></div>
         </div>
 
@@ -72,6 +76,14 @@
           <div class="fee-picker" style="margin: 14px 0 18px;" id="mk-mode-tabs">
             <button type="button" class="fee-opt" id="mk-buy-tab" aria-pressed="true">Buy</button>
             <button type="button" class="fee-opt" id="mk-sell-tab" aria-pressed="false">Sell</button>
+          </div>
+
+          <div class="field" id="mk-currency-field">
+            <label for="mk-currency">Pay with</label>
+            <select id="mk-currency" style="width:100%; background:var(--ink-800); border:1px solid var(--line-cyan-dim); color:var(--paper); font-family:var(--font-mono); font-size:14px; padding:10px 13px; border-radius:var(--radius);">
+              <option value="ETH">ETH</option>
+            </select>
+            <p class="hint" id="mk-currency-hint" style="display:none;">Paying with this redeems it to ETH first, then buys — two wallet confirmations instead of one.</p>
           </div>
 
           <div class="field">
@@ -107,10 +119,15 @@
   let state = null; // result of fetchCurveState
   let mode = "buy";
   let walletConnected = false;
+  let currencyAddresses = {}; // ticker -> coin address, ETH excluded (native)
+  let currencyRates = {}; // ticker -> weiPerUnit, cached on first selection
 
   const actionBtn = document.getElementById("mk-action");
   const statusEl = document.getElementById("mk-status");
   const amountEl = document.getElementById("mk-amount");
+  const currencyEl = document.getElementById("mk-currency");
+  const currencyFieldEl = document.getElementById("mk-currency-field");
+  const currencyHintEl = document.getElementById("mk-currency-hint");
 
   function setStatus(msg, isError) {
     statusEl.style.display = msg ? "block" : "none";
@@ -154,7 +171,12 @@
     document.getElementById("mk-sub").textContent = state.propertyClass
       ? "Tethered to " + state.propertyClass + " — migrates into two pools."
       : "No property class — migrates into a single ETH pool.";
-    document.getElementById("mk-pair").textContent = state.propertyClass ? state.propertyClass : "ETH only";
+    const pairEl = document.getElementById("mk-pair");
+    if (state.propertyClass) {
+      pairEl.innerHTML = `<a href="classes.html?coin=${encodeURIComponent(state.propertyClass)}" style="color:inherit;">${state.propertyClass}</a>`;
+    } else {
+      pairEl.textContent = "ETH only";
+    }
     document.getElementById("mk-fee").textContent = (state.feeBps / 100) + "%";
     document.getElementById("mk-creator").textContent = state.creator.slice(0, 8) + "…" + state.creator.slice(-6);
 
@@ -191,50 +213,140 @@
       actionBtn.textContent = "Migrated — trading closed here";
     }
 
-    loadTrades();
+    // Populate the "Pay with" currency options: ETH always, plus USDG and
+    // the market's own paired class coin (if it has one) — both real,
+    // redeemable-for-ETH PropertyClassCoin instances.
+    if (deployment.usdg) currencyAddresses.USDG = deployment.usdg;
+    if (state.propertyClass && deployment.classCoins && deployment.classCoins[state.propertyClass]) {
+      currencyAddresses[state.propertyClass] = deployment.classCoins[state.propertyClass];
+    }
+    for (const ticker of Object.keys(currencyAddresses)) {
+      const opt = document.createElement("option");
+      opt.value = ticker;
+      opt.textContent = ticker;
+      currencyEl.appendChild(opt);
+    }
+    if (Object.keys(currencyAddresses).length === 0) {
+      currencyFieldEl.style.display = "none"; // nothing but ETH available — no picker needed
+    }
+
+    loadTradesAndChart();
   }
 
-  async function loadTrades() {
-    const el = document.getElementById("mk-trades");
+  async function loadTradesAndChart() {
+    const tradesEl = document.getElementById("mk-trades");
+    const chartEl = document.getElementById("mk-chart");
+    let trades;
     try {
-      const trades = await Parcel.fetchRecentTrades(curveAddress, 30);
-      if (trades.length === 0) {
-        el.innerHTML = `<div class="spec-row"><span class="k">No trades yet</span></div>`;
-        return;
-      }
-      el.innerHTML = trades.map((t) => {
-        const side = t.isBuy ? "Buy" : "Sell";
-        const ethAmt = t.isBuy ? t.ethIn : t.ethOut;
-        const tokenAmt = t.isBuy ? t.tokensOut : t.tokensIn;
-        return `<div class="spec-row">
-          <span class="k">${side} · ${t.trader.slice(0,6)}…${t.trader.slice(-4)}</span>
-          <span class="v"><a href="${deployment.explorer}/tx/${t.txHash}" target="_blank" rel="noopener" style="color:inherit;">${fmtEth(ethAmt)} ETH → ${fmtTokens(tokenAmt)}</a></span>
-        </div>`;
-      }).join("");
+      trades = await Parcel.fetchRecentTrades(curveAddress, 300); // newest first
     } catch (err) {
       console.error(err);
-      el.innerHTML = `<div class="spec-row"><span class="k">Couldn't load trades</span></div>`;
+      tradesEl.innerHTML = `<div class="spec-row"><span class="k">Couldn't load trades</span></div>`;
+      chartEl.textContent = "Couldn't load price history.";
+      return;
     }
+
+    if (trades.length === 0) {
+      tradesEl.innerHTML = `<div class="spec-row"><span class="k">No trades yet</span></div>`;
+      chartEl.textContent = "No trades yet — nothing to chart.";
+      return;
+    }
+
+    tradesEl.innerHTML = trades.slice(0, 30).map((t) => {
+      const side = t.isBuy ? "Buy" : "Sell";
+      const ethAmt = t.isBuy ? t.ethIn : t.ethOut;
+      const tokenAmt = t.isBuy ? t.tokensOut : t.tokensIn;
+      return `<div class="spec-row">
+        <span class="k">${side} · ${t.trader.slice(0,6)}…${t.trader.slice(-4)}</span>
+        <span class="v"><a href="${deployment.explorer}/tx/${t.txHash}" target="_blank" rel="noopener" style="color:inherit;">${fmtEth(ethAmt)} ETH → ${fmtTokens(tokenAmt)}</a></span>
+      </div>`;
+    }).join("");
+
+    const chronological = trades.slice().reverse();
+    const points = chronological.map((t) => {
+      const ethAmt = Number(ethers.formatEther(t.isBuy ? t.ethIn : t.ethOut));
+      const tokenAmt = Number(ethers.formatEther(t.isBuy ? t.tokensOut : t.tokensIn));
+      return tokenAmt > 0 ? (ethAmt / tokenAmt) * 1e9 : null; // gwei per token — far more readable than ~1e-9 ETH
+    }).filter((p) => p !== null && p > 0);
+
+    if (points.length < 2) {
+      chartEl.textContent = "Not enough trades yet to chart a trend.";
+      return;
+    }
+    chartEl.innerHTML = buildPriceChartSvg(points);
+  }
+
+  function buildPriceChartSvg(points) {
+    const w = 560, h = 160, pad = 8;
+    const minP = Math.min(...points), maxP = Math.max(...points);
+    const range = (maxP - minP) || (maxP * 0.1) || 1;
+    const xStep = (w - pad * 2) / (points.length - 1);
+    const xFor = (i) => pad + i * xStep;
+    const yFor = (p) => h - pad - ((p - minP) / range) * (h - pad * 2);
+    const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(p).toFixed(1)}`).join(" ");
+    const areaPath = linePath + ` L ${xFor(points.length - 1).toFixed(1)} ${h - pad} L ${xFor(0).toFixed(1)} ${h - pad} Z`;
+    const up = points[points.length - 1] >= points[0];
+    const lineColor = up ? "var(--green-ok)" : "var(--flag)";
+    const fillColor = up ? "rgba(111,174,127,0.14)" : "rgba(217,102,58,0.14)";
+
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block; overflow:visible;">
+        <path d="${areaPath}" style="fill:${fillColor}; stroke:none;"/>
+        <path d="${linePath}" style="fill:none; stroke:${lineColor}; stroke-width:1.6; stroke-linejoin:round;"/>
+      </svg>
+      <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; color:var(--paper-dim); margin-top:6px;">
+        <span>${points.length} trades plotted</span>
+        <span>${minP.toLocaleString(undefined, { maximumFractionDigits: 3 })} – ${maxP.toLocaleString(undefined, { maximumFractionDigits: 3 })} gwei/token</span>
+      </div>`;
   }
 
   function setMode(newMode) {
     mode = newMode;
     document.getElementById("mk-buy-tab").setAttribute("aria-pressed", mode === "buy");
     document.getElementById("mk-sell-tab").setAttribute("aria-pressed", mode === "sell");
-    document.getElementById("mk-amount-label").textContent = mode === "buy" ? "Pay with ETH" : "Sell " + (state ? state.symbol : "tokens");
+    const hasCurrencies = Object.keys(currencyAddresses).length > 0;
+    currencyFieldEl.style.display = (mode === "buy" && hasCurrencies) ? "block" : "none";
+    if (mode === "sell") currencyEl.value = "ETH";
+    updateAmountLabel();
     updatePreview();
   }
   document.getElementById("mk-buy-tab").addEventListener("click", () => setMode("buy"));
   document.getElementById("mk-sell-tab").addEventListener("click", () => setMode("sell"));
 
-  function updatePreview() {
+  function updateAmountLabel() {
+    if (mode === "sell") {
+      document.getElementById("mk-amount-label").textContent = "Sell " + (state ? state.symbol : "tokens");
+      return;
+    }
+    const currency = currencyEl.value;
+    document.getElementById("mk-amount-label").textContent = "Pay with " + currency;
+    currencyHintEl.style.display = currency === "ETH" ? "none" : "block";
+  }
+  currencyEl.addEventListener("change", () => { updateAmountLabel(); updatePreview(); });
+
+  async function currencyRate(ticker) {
+    if (ticker === "ETH") return 1n * 10n ** 18n; // 1:1 with itself, in wei-per-unit terms
+    if (currencyRates[ticker]) return currencyRates[ticker];
+    const info = await Parcel.readPropertyCoin(currencyAddresses[ticker], null);
+    currencyRates[ticker] = info.weiPerUnit;
+    return info.weiPerUnit;
+  }
+
+  async function updatePreview() {
     const amt = parseFloat(amountEl.value);
     const previewEl = document.getElementById("mk-preview");
     if (!state || !amt || amt <= 0) { previewEl.textContent = "—"; return; }
     if (mode === "buy") {
+      const currency = currencyEl.value;
+      let ethEquivalent = amt;
+      if (currency !== "ETH") {
+        previewEl.textContent = "Estimating…";
+        const rate = await currencyRate(currency); // wei per 1 whole coin
+        ethEquivalent = amt * Number(ethers.formatEther(rate));
+      }
       const soldNumber = Number(ethers.formatEther(state.tokensSold));
-      const tokensOut = Parcel.quoteBuy(amt, soldNumber);
-      previewEl.textContent = "≈ " + Math.round(tokensOut).toLocaleString() + " " + state.symbol + " (before fee)";
+      const tokensOut = Parcel.quoteBuy(ethEquivalent, soldNumber);
+      const via = currency === "ETH" ? "" : " (≈" + ethEquivalent.toLocaleString(undefined, { maximumFractionDigits: 5 }) + " ETH after redeeming)";
+      previewEl.textContent = "≈ " + Math.round(tokensOut).toLocaleString() + " " + state.symbol + " (before fee)" + via;
     } else {
       previewEl.textContent = "Confirm in your wallet to see the exact ETH out — selling depends on live curve reserves.";
     }
@@ -252,17 +364,24 @@
 
     actionBtn.disabled = true;
     try {
-      setStatus("Confirm in your wallet…");
       let result;
       if (mode === "buy") {
-        result = await Parcel.buyOnCurve(curveAddress, ethers.parseEther(amt));
+        const currency = currencyEl.value;
+        if (currency === "ETH") {
+          setStatus("Confirm in your wallet…");
+          result = await Parcel.buyOnCurve(curveAddress, ethers.parseEther(amt));
+        } else {
+          setStatus("Confirm the redeem, then the buy — two wallet confirmations…");
+          result = await Parcel.buyOnCurveWithCoin(curveAddress, currencyAddresses[currency], ethers.parseEther(amt));
+          result.txHash = result.buyTxHash; // for the status line below
+        }
       } else {
         result = await Parcel.sellOnCurve(curveAddress, state.tokenAddr, ethers.parseEther(amt));
       }
       setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + deployment.explorer + "/tx/" + result.txHash);
       amountEl.value = "";
       state = await Parcel.fetchCurveState(curveAddress);
-      loadTrades();
+      loadTradesAndChart();
     } catch (err) {
       console.error(err);
       setStatus(err.message || String(err), true);
