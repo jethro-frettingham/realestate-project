@@ -178,7 +178,6 @@
     }
     if (!state) return;
 
-    document.getElementById("mk-tag").textContent = state.symbol;
     document.getElementById("mk-name").textContent = state.name;
     document.getElementById("mk-sub").textContent = state.propertyClass
       ? "Tethered to " + Parcel.classDisplayName(state.propertyClass) + ". Migrates into two pools."
