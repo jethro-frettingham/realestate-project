@@ -1,12 +1,12 @@
 /**
  * PROPERTY_CLASSES
  * ------------------------------------------------------------------
- * Every launch on Parcel is paired with one of these classes instead
+ * Every launch on CASTLE is paired with one of these classes instead
  * of a stablecoin. Each class has its own coin (e.g. SHED, VILA) whose
- * price tracks an index for that asset type — see /docs for how the
+ * price tracks an index for that asset type, see /docs for how the
  * index is sourced. `unit` is the reference unit the index prices.
  * `ticker` is the coin's real on-chain symbol (fixed once deployed);
- * `displayName` is a short, unabbreviated word for UI text — the two
+ * `displayName` is a short, unabbreviated word for UI text, the two
  * intentionally differ (HOUS vs. House) since renaming an on-chain
  * symbol means redeploying that coin.
  *

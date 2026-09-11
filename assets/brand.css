@@ -1,0 +1,4168 @@
+/* =========================================================================
+   CASTLE — brand layer (PROTOTYPE)
+
+   Brand only. Not one element moves: this file restyles the markup the
+   pages already had. Layout, order and structure are untouched.
+
+   Two references merged. The property board supplies the palette — mint
+   green ground, twenty property colours, black rules. real.fun supplies
+   the finish — soft gradients, layered shadows, glass, inner highlights,
+   so nothing reads flat.
+
+   The old dark theme's tokens are remapped at the top, which fixes every
+   cream-on-green text leak at once (style.css calls them in 97 places).
+
+   Loaded after style.css. Delete this file, brand.js and the two tags
+   that load them to get the old look back.
+   ========================================================================= */
+
+:root {
+  /* --- board palette --- */
+  --ground:      #CDE5D8;
+  --ground-hi:   #E2F0E8;
+  --stock:       #FFFFFF;
+  --rule:        #101413;
+  --ink:         #0B0B0B;
+  --ink-2:       #1F2426;
+  --muted:       #4A5451;
+  --hairline:    rgba(16, 20, 19, 0.16);
+  --red:         #9BF06A;
+  --red-lo:      #6FCB3E;
+  --lime-text:   #3E7A1E;   /* lime as text is unreadable, so text uses this */
+  --lime:        #A5FF7A;
+
+  /* --- remap of the old dark-theme tokens --- */
+  --paper:         #0B0B0B;
+  --paper-dim:     #4A5451;
+  --brass:         #6FCB3E;
+  --brass-bright:  #6FCB3E;
+  --line-cyan:     #101413;
+  --line-cyan-dim: rgba(16, 20, 19, 0.18);
+  --ink-900:       #FFFFFF;
+  --ink-800:       #FFFFFF;
+  --ink-700:       #F4F8F4;
+  --green-ok:      #14713C;
+  --flag:          #8A6B1E;
+
+  --font-ui: "Inter", -apple-system, system-ui, "Segoe UI", sans-serif;
+
+  /* --- depth --- */
+  --lift-1: 0 1px 2px rgba(16, 32, 26, 0.10), 0 4px 10px rgba(16, 32, 26, 0.09);
+  --lift-2: 0 2px 4px rgba(16, 32, 26, 0.12), 0 12px 26px rgba(16, 32, 26, 0.16);
+  --gloss:  inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+body {
+  background:
+    radial-gradient(1200px 620px at 50% -140px, var(--ground-hi), transparent 70%),
+    linear-gradient(180deg, var(--ground), #C3DED0);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: -0.006em;
+}
+
+::selection { background: var(--red); color: #0B140A; }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+h1, h2, h3 { font-family: var(--font-ui); font-weight: 700; letter-spacing: -0.028em; color: var(--ink); }
+
+.wrap { max-width: 1140px; padding: 0 32px; }
+
+/* ---------- Header ------------------------------------------------------ */
+
+.site-header {
+  background: linear-gradient(180deg, rgba(233, 245, 238, 0.92), rgba(205, 229, 216, 0.86));
+  backdrop-filter: blur(14px) saturate(1.15);
+  border-bottom: 1px solid var(--hairline);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 6px 18px rgba(16, 32, 26, 0.07);
+}
+
+/* Wordmark. The plate is the wall: five merlons across the whole top edge,
+   so the mark is one silhouette rather than a hat sitting on the C. Every
+   dimension is in ems of the type size, so it holds at any scale.
+
+   Top padding clears the merlons and nothing more, which makes the
+   crenellation the only real gap in the mark; the other three sides wrap
+   the letterforms. The keyline insets are in ems for the same reason: at
+   a fixed 2px and 3px they ate the space the padding needed. */
+.brand .mark { display: none; }
+
+.brand > span {
+  --cren: polygon(
+    0% 100%, 100% 100%, 100% 0%,
+    86% 0%, 86% 22%, 78.5% 22%, 78.5% 0%,
+    64.5% 0%, 64.5% 22%, 57% 22%, 57% 0%,
+    43% 0%, 43% 22%, 35.5% 22%, 35.5% 0%,
+    21.5% 0%, 21.5% 22%, 14% 22%, 14% 0%,
+    0% 0%
+  );
+  --fs: 17px;
+  position: relative;
+  display: inline-block;
+  background: #5FB833;
+  clip-path: var(--cren);
+  padding: calc(var(--fs) * 0.40) calc(var(--fs) * 0.13) calc(var(--fs) * 0.06);
+  filter: drop-shadow(0 1px 2px rgba(16, 32, 26, 0.25));
+}
+
+/* the keyline, painting before the inner red so the order reads
+   word, red, faint white rule, red to the edge */
+.brand > span::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--fs) * 0.038);
+  background: rgba(11, 20, 10, 0.42);
+  clip-path: var(--cren);
+}
+
+.brand > span > i {
+  position: absolute;
+  inset: calc(var(--fs) * 0.082);
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E);
+  clip-path: var(--cren);
+}
+
+.brand > span > b {
+  position: relative;
+  display: block;
+  font-family: "Archivo Black", var(--font-ui);
+  font-weight: 400;
+  font-size: var(--fs);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  color: #0B140A;
+  white-space: nowrap;
+}
+
+.brand:hover > span > i { background: linear-gradient(180deg, #D6FFB5, #8AE85C); }
+
+nav.primary a {
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 7px 13px;
+  border-radius: 6px;
+  border-bottom: none;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+nav.primary a:hover { color: var(--ink); background: rgba(255, 255, 255, 0.6); }
+
+nav.primary a[aria-current="page"] {
+  color: var(--ink);
+  background: linear-gradient(180deg, #fff, #EEF5F0);
+  border-bottom: none;
+  box-shadow: var(--gloss), var(--lift-1);
+}
+
+.chain-tag {
+  color: var(--muted);
+  background: linear-gradient(180deg, #fff, #F2F7F3);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  box-shadow: var(--gloss);
+}
+
+.btn-connect {
+  background: linear-gradient(180deg, #2C3331, #101413);
+  color: #fff;
+  border: 1px solid #0A0D0C;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), var(--lift-1);
+}
+
+.btn-connect:hover { background: linear-gradient(180deg, #3A423F, #171C1A); }
+
+/* ---------- Buttons ----------------------------------------------------- */
+
+.btn, .btn-primary, .btn-outline {
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 11px 22px;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, #C4FF9E, var(--red-lo));
+  color: #0B140A;
+  border: 1px solid #4E9A2A;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--lift-1);
+}
+
+.btn-primary:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), var(--lift-2); }
+.btn-primary:active { transform: translateY(0); filter: brightness(0.96); }
+
+.btn-outline {
+  background: linear-gradient(180deg, #fff, #F1F6F2);
+  color: var(--ink);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--gloss), var(--lift-1);
+}
+
+.btn-outline:hover { transform: translateY(-1px); box-shadow: var(--gloss), var(--lift-2); }
+
+/* ---------- Hero -------------------------------------------------------- */
+
+.hero { border-bottom: 1px solid var(--hairline); }
+
+.eyebrow-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: linear-gradient(180deg, #fff, #F1F6F2);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 5px 14px 5px 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  box-shadow: var(--gloss), var(--lift-1);
+}
+
+.eyebrow-tag::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, #D6FFBE, var(--lime) 55%, #7FD455);
+  border: 1px solid rgba(16, 20, 19, 0.35);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.7);
+}
+
+.hero h1 { letter-spacing: -0.032em; }
+.hero .lede { color: var(--ink-2); }
+
+.stamp { color: var(--muted); }
+.stamp b { color: var(--ink); }
+
+/* the blueprint plat drawing becomes a raised board panel */
+.plat {
+  background: linear-gradient(160deg, #fff, #EAF3ED);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  box-shadow: var(--gloss), var(--lift-2);
+  padding: 18px;
+}
+
+.plat svg { stroke: #2B3A34 !important; }
+.plat svg text { fill: #5B6A64 !important; }
+.plat figcaption { color: var(--muted); }
+
+/* ---------- Hero stat row ----------------------------------------------
+   Three equal cells across the full width, big red figure over a quiet
+   label. Hairlines top and bottom and between cells, so it reads as a
+   recorded spec strip rather than three floating numbers. */
+
+.statrow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 52px;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.statrow .stat {
+  padding: 20px 12px 18px;
+  border-left: 1px solid var(--hairline);
+  text-align: center;
+}
+
+.statrow .stat:first-child { border-left: none; }
+
+/* same red gradient the buttons use, clipped to the letterforms */
+.statrow .stat b {
+  display: block;
+  font-family: "Archivo Black", var(--font-ui);
+  font-weight: 400;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #63B534, #2F6B17);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.statrow .stat span {
+  display: block;
+  margin-top: 7px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .statrow { grid-template-columns: 1fr; }
+  .statrow .stat { border-left: none; border-top: 1px solid var(--hairline); padding: 16px 0; }
+  .statrow .stat:first-child { border-top: none; }
+}
+
+/* ---------- Sections ---------------------------------------------------- */
+
+.section { border-bottom: 1px solid var(--hairline); }
+.section-head p { color: var(--muted); }
+.sub { color: var(--muted); }
+
+/* ---------- Class tiles — same grid, real depth ------------------------- */
+
+/* The original grid faked hairlines by showing a coloured container through
+   1px gaps, which also left a solid slab wherever the last row was short.
+   Real gaps and real borders fix both and let each tile cast a shadow. */
+.tile-grid {
+  background: none;
+  border: none;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+}
+
+.tile {
+  --c: #4C5A56;
+  background: linear-gradient(180deg, #FFFFFF, #F4F8F5);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 78px 16px 16px;
+  overflow: hidden;
+  box-shadow: var(--gloss), var(--lift-1);
+  transition: transform 0.14s ease, box-shadow 0.16s ease, background 0.15s ease;
+}
+
+/* each class's own colour, as a glossy band across the top */
+.tile::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 34px;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.02) 52%, rgba(0, 0, 0, 0.10)),
+    linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 82%, #000));
+  border-bottom: 1px solid rgba(16, 20, 19, 0.26);
+}
+
+.tile:hover {
+  background: linear-gradient(180deg, #FFFFFF, #EFF6F1);
+  transform: translateY(-3px);
+  box-shadow: var(--gloss), var(--lift-2);
+}
+
+.tile .tier {
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 34px;   /* must match the band, or the label floats high */
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none !important;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ci, #fff) !important;
+  /* heavier and wider set, so the band reads as a deed card title bar
+     rather than a small caption sitting on a colour */
+  font-family: "Archivo Black", var(--font-ui);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+/* tier colour is carried by the block itself, so the label just needs to
+   stay readable on whichever of the twenty colours sits behind it */
+.tile[data-ticker] .tier { color: var(--ci, #fff) !important; }
+
+/* Line glyph, used by any class whose real art has not landed yet. */
+.tile .glyph {
+  width: 100%;
+  height: 74px;
+  margin: 0 0 12px;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--c) 76%, #0B0B0B);
+}
+
+.tile .glyph svg {
+  width: 68px;
+  height: 68px;
+  filter: drop-shadow(0 2px 3px rgba(16, 32, 26, 0.18));
+}
+
+/* Real class art gets a far bigger slot that bleeds past the tile's side
+   padding, so the render fills the card instead of floating in white. The
+   art is cut to transparency, so there is no box and no baked shadow. */
+/* Class art slot. No negative margins: bleeding it past the tile's padding
+   is what was clipping the sides, because the tile itself clips overflow.
+   Fixed height plus object-fit contain means nothing is ever cut. */
+.tile.has-art .glyph {
+  width: 100%;
+  height: 150px;
+  margin: 0 0 12px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tile.has-art .glyph img {
+  display: block;
+  max-width: 100%;
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.tile .ticker { color: var(--ink); font-family: var(--font-ui); font-weight: 700; letter-spacing: -0.01em; font-size: 16px; }
+.tile .label  { color: var(--muted); }
+.tile .unit   { color: var(--ink-2); border-top: 1px solid var(--hairline); }
+.tile .tile-price { color: var(--ink) !important; font-weight: 600; }
+
+/* ---------- Class search ------------------------------------------------ */
+
+.class-search {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 34px;
+  padding: 12px 18px;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  box-shadow: var(--gloss), var(--lift-1);
+}
+
+.class-search svg { width: 17px; height: 17px; color: var(--muted); flex: none; }
+
+.class-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.class-search input::placeholder { color: #9AA69F; }
+
+.class-count {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  flex: none;
+}
+
+/* ---------- Spec sheets ------------------------------------------------- */
+
+.spec {
+  background: linear-gradient(180deg, #fff, #F5F9F6);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  box-shadow: var(--gloss), var(--lift-1);
+  overflow: hidden;
+}
+
+.spec-row { border-bottom: 1px solid var(--hairline); }
+
+/* ---------- Live markets ------------------------------------------------ */
+
+.market-search {
+  background: linear-gradient(180deg, #fff, #F5F9F6);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  padding: 10px 18px;
+  box-shadow: var(--gloss);
+}
+
+.market-search::placeholder { color: #93A09B; }
+
+.market-filter {
+  background: linear-gradient(180deg, #fff, #F1F6F2);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 8px 16px;
+  box-shadow: var(--gloss);
+}
+
+.market-filter[aria-pressed="true"] {
+  background: linear-gradient(180deg, #C4FF9E, var(--red-lo));
+  color: #0B140A;
+  border-color: #4E9A2A;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), var(--lift-1);
+}
+
+.market-grid {
+  background: none;
+  border: none;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(262px, 1fr));
+}
+
+.market-card {
+  background: linear-gradient(180deg, #FFFFFF, #F4F8F5);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 16px;
+  color: var(--ink);
+  box-shadow: var(--gloss), var(--lift-1);
+  transition: transform 0.14s ease, box-shadow 0.16s ease, background 0.15s ease;
+}
+
+.market-card:hover {
+  background: linear-gradient(180deg, #FFFFFF, #EFF6F1);
+  transform: translateY(-3px);
+  box-shadow: var(--gloss), var(--lift-2);
+}
+
+.market-ticker { color: var(--ink); font-family: var(--font-ui); font-weight: 700; }
+.market-name { color: var(--muted); }
+.market-badge {
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff, #F1F6F2);
+  box-shadow: var(--gloss);
+}
+
+/* ---------- Footer ------------------------------------------------------ */
+
+.site-footer { border-top: 1px solid var(--hairline); background: none; color: var(--muted); }
+.site-footer a { color: var(--ink-2); }
+
+
+/* ---------- Coin and market pages ---------------------------------------
+   The class art repeats here in a white panel, and the name takes the
+   class colour as a gradient so the page is keyed to the class you came
+   from rather than being generically branded. */
+
+.class-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 6px;
+}
+
+.class-head .art {
+  width: 104px;
+  height: 104px;
+  flex: none;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  box-shadow: var(--gloss), var(--lift-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.class-head .art img { max-width: 100%; max-height: 100%; display: block; }
+
+.class-head h1 {
+  margin: 0;
+  font-size: clamp(30px, 3.4vw, 44px);
+  line-height: 1.2;
+  padding: 0.04em 0.06em 0.1em 0;
+  overflow: visible;
+  letter-spacing: -0.03em;
+  /* colour and outline are set inline by brand.js from the class hex */
+  color: var(--c, var(--ink));
+  paint-order: stroke fill;
+}
+
+.class-head .tierline {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+
+/* Panels on the coin and market pages were letting the page ground show
+   through, which read as a transparent card. Solid fill on all of them. */
+.spec,
+.market-icon,
+.chart-wrap,
+.panel,
+.co-panel {
+  background: linear-gradient(180deg, #FFFFFF, #F6FAF7) !important;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: var(--gloss), var(--lift-1);
+}
+
+.launch-grid > div > .spec { margin-bottom: 20px; }
+
+
+/* No rules between sections: the spacing carries the separation. */
+.section,
+.hero { border-bottom: none !important; }
+.site-footer { border-top: none !important; }
+
+
+/* A single centred line under the hero, set at the headline size so it
+   reads as a second statement rather than a caption. */
+.hero-quote {
+  max-width: 24ch;
+  margin: 104px auto 96px;
+  text-align: center;
+  text-wrap: balance;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-style: italic;
+  font-size: clamp(24px, 3.0vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -0.028em;
+  color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  .hero-quote { max-width: none; margin: 60px auto 56px; }
+}
+
+
+/* ---------- Spec lists --------------------------------------------------
+   These were a bordered box with cramped rows and a dashed rule, which is
+   the oldest-looking thing left on the site. Now: a clean card, roomy rows,
+   label in muted sans on the left, value in tabular mono on the right, and
+   a hairline that stops short of the edges so the list breathes. */
+
+.spec {
+  background: #fff !important;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  box-shadow: var(--gloss), var(--lift-1);
+  overflow: hidden;
+  padding: 4px 0;
+}
+
+.spec-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 24px;
+  padding: 16px 22px;
+  border-bottom: none;
+  position: relative;
+}
+
+.spec-row + .spec-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 22px;
+  right: 22px;
+  height: 1px;
+  background: rgba(16, 20, 19, 0.08);
+}
+
+.spec-row .k {
+  font-family: var(--font-ui);
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: -0.005em;
+}
+
+.spec-row .v {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  text-align: right;
+}
+
+.spec-row .v.brass { color: var(--lime-text); }
+
+@media (max-width: 620px) {
+  .spec-row { grid-template-columns: 1fr; gap: 4px; }
+  .spec-row .v { text-align: left; }
+}
+
+
+/* every class tile is clickable, so say so */
+.tile[data-ticker] { cursor: pointer; }
+
+
+/* X link, sitting beside Connect wallet */
+.btn-x {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 8px;
+  border: 1px solid #0A0D0C;
+  background: linear-gradient(180deg, #2C3331, #101413);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), var(--lift-1);
+  transition: background 0.15s ease;
+}
+
+.btn-x svg { width: 16px; height: 16px; display: block; }
+
+.btn-x:hover { background: linear-gradient(180deg, #3A423F, #171C1A); }
+
+
+/* Inline links in body copy: brand red, no underline. */
+.lede a,
+.section-head p a,
+.sub a,
+p a {
+  color: var(--lime-text) !important;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.lede a:hover,
+p a:hover { color: #2F6B17; }
+
+
+/* Headings pick up the same soft top-to-bottom shift as the dark buttons,
+   so black type on the page and black on the buttons agree. */
+h1, h2, h3,
+.section-head h2,
+.hero h1 {
+  background: linear-gradient(180deg, #2C3331, #0B0B0B 72%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* class titles are painted per class by brand.js, and the logo is its own
+   thing, so neither takes the heading gradient */
+.class-head h1,
+.brand > span > b { background: none; -webkit-text-fill-color: currentColor; }
+
+
+/* ---------- Launch page pickers -----------------------------------------
+   Card treatment to match the rest of the site, each class option keyed to
+   its own colour with a small render beside the name. */
+
+.class-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+  gap: 10px;
+}
+
+.fee-picker { gap: 10px; }
+
+.class-opt {
+  --c: #4C5A56;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.02) 54%, rgba(0, 0, 0, 0.08)),
+    linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 82%, #000)) !important;
+  border: 1px solid rgba(16, 20, 19, 0.22) !important;
+  border-radius: 12px;
+  box-shadow: var(--gloss), var(--lift-1);
+  color: var(--ci, #fff);
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  padding: 10px 12px;
+  text-align: left;
+  min-width: 0;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: break-word;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+/* the label, so long names wrap instead of running out of the button */
+.class-opt > span:not(.chip),
+.class-opt { overflow: visible; }
+
+/* the class's own colour, as a chip carrying its render */
+.class-opt .chip {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 8px;
+  padding: 2px;
+  /* the art sits on white so every render stays readable */
+  background: #fff;
+  border: 1px solid rgba(16, 20, 19, 0.18);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.class-opt .chip img { width: 100%; height: 100%; object-fit: contain; }
+
+.class-opt:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--gloss), var(--lift-2);
+  filter: brightness(1.05);
+}
+
+.class-opt[aria-pressed="true"] {
+  border-color: #101413 !important;
+  box-shadow: var(--gloss), 0 0 0 3px rgba(16, 20, 19, 0.22), var(--lift-1);
+}
+
+/* fee options: transparent until picked, then solid red */
+.fee-opt {
+  background: transparent;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 12px;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 12px 16px;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fee-opt:hover { border-color: #cfd2c9 !important; background: rgba(255, 255, 255, 0.5); }
+
+.fee-opt[aria-pressed="true"] {
+  background: linear-gradient(180deg, #C4FF9E, var(--red-lo)) !important;
+  border-color: #4E9A2A !important;
+  color: #0B140A !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), var(--lift-1);
+}
+
+/* ---------- every remaining panel matches the cards --------------------- */
+
+.spec,
+.launch-card,
+.chart-wrap,
+.panel {
+  background: linear-gradient(180deg, #FFFFFF, #F8FBF9) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--gloss), var(--lift-1) !important;
+}
+
+
+/* Nothing red anywhere: every remaining accent from the base stylesheet,
+   including focus rings and the values it paints with --brass, goes lime. */
+:root {
+  --brass:        #3E7A1E;
+  --brass-bright: #3E7A1E;
+}
+
+:focus-visible { outline-color: var(--lime-text) !important; }
+
+input:focus,
+.market-search:focus,
+.class-search:focus-within {
+  border-color: var(--lime-text) !important;
+  box-shadow: 0 0 0 3px rgba(155, 240, 106, 0.35) !important;
+}
+
+.market-card .market-ca,
+.market-badge,
+[style*="var(--brass-bright)"] { color: var(--lime-text) !important; }
+
+
+/* Sell is red in both builds: it is a semantic colour, not a brand one. */
+#co-sell-tab[aria-pressed="true"],
+#mk-sell-tab[aria-pressed="true"],
+[id$="-sell-tab"][aria-pressed="true"] {
+  background: linear-gradient(180deg, #E8382F, #B31C18) !important;
+  border-color: #8E120F !important;
+  color: #fff !important;
+}
+
+
+/* ---------- Every input and surface, one treatment ----------------------
+   Rounded corners, a soft shadow and a hairline on everything the user can
+   type into or that holds content, so nothing on the site is a bare square
+   any more. */
+
+input[type="text"],
+input[type="number"],
+input[type="url"],
+input[type="search"],
+textarea,
+select,
+.dropzone,
+.field input,
+.field textarea {
+  background: linear-gradient(180deg, #FFFFFF, #FBFDFC) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--gloss), var(--lift-1) !important;
+  padding: 13px 16px !important;
+  font-family: var(--font-ui) !important;
+  font-size: 15px !important;
+  color: var(--ink) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+textarea { min-height: 120px; line-height: 1.5; resize: vertical; }
+
+input::placeholder,
+textarea::placeholder { color: #93A09B !important; }
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: #3E7A1E !important;
+  box-shadow: var(--gloss), 0 0 0 3px rgba(155, 240, 106, 0.35) !important;
+}
+
+.dropzone {
+  border-style: dashed !important;
+  border-width: 1.5px !important;
+  padding: 26px 18px !important;
+  text-align: center;
+}
+
+/* the search pill keeps its round shape */
+.market-search, .class-search { border-radius: 999px !important; }
+
+/* labels above fields */
+.field label, form label {
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* anything still square gets the card treatment */
+.card, .box, .tile-wrap, .launch-grid > div > div:not(.spec-row) {
+  border-radius: 14px;
+}
+
+
+/* ---------- Accent values as pills --------------------------------------
+   The highlighted figures were accent-coloured text sitting on white, which
+   read as a stray colour. They are chips now, so the accent is a fill. */
+
+.spec-row .v.brass,
+.spec-row .v[class*="brass"] {
+  display: inline-block;
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  border: 1px solid #4E9A2A;
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: #0B140A !important;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* ---------- Home stats as cards -----------------------------------------
+   Gradient figures on the open ground looked weak, so each stat sits in its
+   own white card instead and the number is solid. */
+
+.statrow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  border: none !important;
+  margin-top: 56px;
+}
+
+.statrow .stat {
+  background: linear-gradient(180deg, #FFFFFF, #F8FBF9) !important;
+  border: 1px solid var(--hairline) !important;
+  border-left: 1px solid var(--hairline) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--gloss), var(--lift-1);
+  padding: 26px 24px 22px !important;
+  text-align: left;
+}
+
+.statrow .stat b {
+  background: none !important;
+  -webkit-text-fill-color: #3E7A1E !important;
+  color: #3E7A1E !important;
+  font-size: clamp(26px, 2.6vw, 34px);
+}
+
+.statrow .stat span { color: var(--muted); font-size: 13.5px; margin-top: 6px; }
+
+
+/* ---------- Picker, quieter -------------------------------------------
+   A full gradient fill on every option was too much colour at once. The
+   button is white again, name and icon only, with the class colour as a
+   thin bar across the top: same cue as the card band, a fraction of the
+   weight. */
+
+.class-opt {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #FFFFFF, #F8FBF9) !important;
+  border: 1px solid var(--hairline) !important;
+  color: var(--ink) !important;
+  padding: 14px 12px 10px !important;
+}
+
+.class-opt::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 80%, #000));
+}
+
+.class-opt:hover { filter: none; border-color: #cfd2c9 !important; }
+
+.class-opt[aria-pressed="true"] {
+  border-color: #101413 !important;
+  box-shadow: var(--gloss), 0 0 0 2px rgba(16, 20, 19, 0.18), var(--lift-1);
+}
+
+/* icon chip goes plain, the bar carries the colour now */
+.class-opt .chip {
+  background: #fff !important;
+  border: 1px solid var(--hairline) !important;
+}
+
+
+/* None (ETH only) has no class, so it takes no colour bar. */
+.class-opt[data-ticker=""]::before { display: none; }
+.class-opt[data-ticker=""] { padding-top: 10px !important; }
+
+
+/* ---------- Launch terms: values in their own white bubbles ------------- */
+.launch-grid .spec-row .v:not(.brass) {
+  display: inline-block;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  box-shadow: var(--gloss);
+}
+
+/* ---------- Stats: one container, three cells --------------------------
+   Was three separate cards; now a single rounded block carrying the same
+   gradient as the Launch a coin button, split by hairlines. */
+
+.statrow {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 0 !important;
+  margin-top: 56px;
+  border: 1px solid #4E9A2A !important;
+  border-radius: 20px !important;
+  overflow: hidden;
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), var(--lift-1);
+}
+
+.statrow .stat {
+  background: none !important;
+  border: none !important;
+  border-left: 1px solid rgba(11,20,10,0.18) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 28px 26px 24px !important;
+  text-align: center;
+}
+
+.statrow .stat:first-child { border-left: none !important; }
+
+.statrow .stat b {
+  background: none !important;
+  -webkit-text-fill-color: #0B140A !important;
+  color: #0B140A !important;
+  font-size: clamp(26px, 2.8vw, 36px);
+}
+
+.statrow .stat span { color: rgba(11,20,10,0.62) !important; font-size: 13.5px; margin-top: 6px; }
+
+@media (max-width: 720px) {
+  .statrow { grid-template-columns: 1fr !important; }
+  .statrow .stat { border-left: none !important; border-top: 1px solid rgba(11,20,10,0.18) !important; }
+  .statrow .stat:first-child { border-top: none !important; }
+}
+
+
+/* The search field was being styled as a card by the global input rule and
+   then sitting inside the search pill, which is a card too. The wrapper is
+   the surface; the input inside it is bare. */
+.class-search input,
+.markets-toolbar .market-search {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.class-search input:focus { box-shadow: none !important; }
+
+.class-search:focus-within {
+  border-color: var(--hairline) !important;
+  box-shadow: var(--gloss), var(--lift-2) !important;
+}
+
+
+/* The Overview aside is a card, and the spec list inside it is a card too,
+   so it read as a box in a box. The aside stays the surface; the list
+   inside goes flat. */
+.panel {
+  background: linear-gradient(180deg, #FFFFFF, #F8FBF9) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--gloss), var(--lift-1) !important;
+  padding: 22px 22px 20px;
+}
+
+.panel .spec {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0;
+  margin-top: 14px;
+}
+
+.panel .spec-row { padding: 14px 0; }
+.panel .spec-row + .spec-row::before { left: 0; right: 0; }
+.panel h3 { margin: 0 0 4px; font-size: 18px; letter-spacing: -0.02em; }
+.panel .sub { margin: 0; }
+
+
+/* ---------- Stats: one white block, gradient figures -------------------- */
+
+.statrow {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 0 !important;
+  margin-top: 52px;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  background: linear-gradient(180deg, #FFFFFF, #F8FBF9) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--gloss), var(--lift-1) !important;
+  overflow: hidden;
+}
+
+.statrow .stat {
+  background: none !important;
+  border: none !important;
+  border-left: 1px solid var(--hairline) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 20px 18px 18px !important;
+  text-align: center;
+}
+
+.statrow .stat:first-child { border-left: none !important; }
+
+/* only the figure is gradient, in the Launch a coin button's own hues */
+.statrow .stat b {
+  background: linear-gradient(180deg, #9BF06A, #3E7A1E) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+  font-size: clamp(24px, 2.4vw, 30px);
+  line-height: 1.2;
+  padding-bottom: 0.06em;
+}
+
+.statrow .stat span { color: var(--muted) !important; font-size: 13px; margin-top: 4px; }
+
+/* ---------- Picker: selected turns accent, art stays on white ----------- */
+
+.class-opt[aria-pressed="true"] {
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  border-color: #4E9A2A !important;
+  color: #0B140A !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), var(--lift-1) !important;
+}
+
+.class-opt[aria-pressed="true"] .chip {
+  background: #fff !important;
+  border-color: rgba(16, 20, 19, 0.22) !important;
+}
+
+/* the class colour bar stays, so you can still tell which class it is */
+.class-opt[aria-pressed="true"]::before { opacity: 1; }
+
+
+/* the stat block spans the hero width again, not a narrow centred strip */
+.statrow { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; }
+
+
+/* Hero CA button: nothing to copy yet, so it reads as pending rather than
+   looking broken when clicked. */
+.btn-ca {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: default;
+}
+
+.btn-ca svg { width: 15px; height: 15px; opacity: 0.55; }
+.btn-ca[disabled] { opacity: 0.78; }
+.btn-ca[disabled]:hover { transform: none; }
+
+
+/* Inline links in lede copy become the same accent pill the spec tables
+   use, so a link reads as a thing you press rather than coloured text. */
+.lede a {
+  display: inline-block;
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  border: 1px solid #4E9A2A;
+  border-radius: 999px;
+  padding: 2px 11px;
+  margin: 0 1px;
+  color: #0B140A !important;
+  font-size: 0.86em;
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: filter 0.15s ease;
+}
+
+.lede a:hover { filter: brightness(1.06); }
+
+
+/* ---------- Docs page, documentation layout ----------------------------- */
+
+.read-progress {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  z-index: 100;
+  background: rgba(16, 20, 19, 0.06);
+}
+
+.read-progress i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #C4FF9E, #7FD84E);
+}
+
+body.has-toc main {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 44px;
+  align-items: start;
+}
+
+body.has-toc main > .toc { grid-column: 1; position: sticky; top: 96px; }
+body.has-toc main > section { grid-column: 2; padding: 36px 0 !important; }
+body.has-toc main > section > .wrap { max-width: none; padding: 0; }
+
+.toc h4 {
+  margin: 0 0 10px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.toc ul { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--hairline); }
+
+.toc a {
+  display: block;
+  padding: 7px 0 7px 14px;
+  margin-left: -2px;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-decoration: none;
+  line-height: 1.35;
+}
+
+.toc a:hover { color: var(--ink); }
+.toc a.on { color: var(--ink); border-left-color: #3E7A1E; font-weight: 600; }
+
+/* the docs body sits on white, like a documentation page */
+body.has-toc main > section > .wrap > * { max-width: 78ch; }
+
+body.has-toc main > section {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  box-shadow: var(--gloss), var(--lift-1);
+  padding: 32px 34px !important;
+  margin-bottom: 22px;
+}
+
+@media (max-width: 900px) {
+  body.has-toc main { grid-template-columns: 1fr; }
+  body.has-toc main > .toc { position: static; }
+  body.has-toc main > section { grid-column: 1; }
+}
+
+/* ---------- ETH suffix on the first-buy field --------------------------- */
+
+.buy-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.buy-row input { flex: 1; min-width: 0; }
+
+.buy-row .currency-select {
+  background: linear-gradient(180deg, #FFFFFF, #F6FAF7) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--gloss), var(--lift-1);
+  padding: 0 18px !important;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* ---------- Contract addresses, one treatment --------------------------- */
+
+.ca-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(180deg, #FFFFFF, #F6FAF7);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: #3E7A1E;
+  cursor: pointer;
+  box-shadow: var(--gloss);
+}
+
+.ca-chip svg { width: 13px; height: 13px; opacity: 0.5; color: var(--muted); }
+.ca-chip:hover { border-color: #cfd2c9; }
+
+/* ---------- Footer --------------------------------------------------- */
+
+.site-footer .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.foot-links { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.foot-links a,
+.foot-links .ca-chip {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.foot-links > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(180deg, #FFFFFF, #F6FAF7);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 6px 13px;
+  color: var(--ink-2) !important;
+  box-shadow: var(--gloss);
+}
+
+.foot-links > a:hover { border-color: #cfd2c9; color: var(--ink) !important; }
+
+
+/* Robinhood feather ahead of the CASTLE contract address, so it is obvious
+   which chain the token lives on. */
+.btn-ca .rh {
+  width: 13px;
+  height: 13px;
+  opacity: 0.7;
+  color: var(--ink);
+  flex: none;
+}
+
+
+/* ---------- Docs, one white page ---------------------------------------
+   Every section was its own card, which chopped the page into boxes. Now
+   the whole document is a single white sheet, and the contents rail marks
+   the section you are in with a filled pill rather than bold text. */
+
+body.has-toc { background: var(--ground); }
+
+body.has-toc main {
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 40px;
+  padding-top: 26px;
+  padding-bottom: 60px;
+}
+
+body.has-toc main > section {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 0 8px !important;
+  margin: 0 !important;
+}
+
+/* one sheet behind the whole document */
+body.has-toc main::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 0;
+}
+
+body.has-toc main > section:first-of-type { padding-top: 8px !important; }
+
+body.has-toc main { position: relative; }
+
+body.has-toc main > .doc-sheet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 276px;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  box-shadow: var(--gloss), var(--lift-1);
+  z-index: 0;
+}
+
+body.has-toc main > section { position: relative; z-index: 1; }
+body.has-toc main > section > .wrap { padding: 0 34px !important; }
+body.has-toc main > section:first-of-type > .wrap { padding-top: 30px !important; }
+body.has-toc main > section:last-of-type > .wrap { padding-bottom: 34px !important; }
+
+/* contents rail: black line, filled pill on the section you are reading */
+.toc ul { border-left: 2px solid rgba(16, 20, 19, 0.85); }
+
+.toc a {
+  border-left: none;
+  margin-left: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+}
+
+.toc a.on {
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E);
+  border: 1px solid #4E9A2A;
+  color: #0B140A;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* progress bar: thicker, rounded, tucked under the header */
+.read-progress {
+  top: 70px;
+  left: 32px;
+  right: 32px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(16, 20, 19, 0.08);
+  overflow: hidden;
+}
+
+.read-progress i {
+  border-radius: 999px;
+  background: linear-gradient(90deg, #C4FF9E, #7FD84E);
+}
+
+@media (max-width: 900px) {
+  body.has-toc main > .doc-sheet { display: none; }
+  body.has-toc main > section > .wrap { padding: 0 !important; }
+}
+
+
+/* ---------- Footer: plain text stacked on the right --------------------- */
+
+.site-footer .wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-top: 26px;
+  padding-bottom: 30px;
+}
+
+.foot-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  text-align: right;
+}
+
+.foot-links > a,
+.foot-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--muted) !important;
+  text-decoration: none;
+}
+
+.foot-row b {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: #3E7A1E;
+}
+
+.foot-row svg { width: 13px; height: 13px; opacity: 0.45; }
+.foot-row[data-copy] { cursor: pointer; }
+.foot-row[data-copy]:hover { color: var(--ink) !important; }
+.foot-row[data-copy]:hover svg { opacity: 0.8; }
+.foot-row.is-pending { opacity: 0.72; cursor: default; }
+.foot-links > a:hover { color: var(--ink) !important; }
+
+@media (max-width: 620px) {
+  .foot-links { align-items: flex-start; text-align: left; }
+}
+
+
+/* ---------- Docs: the whole page below the nav is the white sheet -------
+   The sheet used to sit only behind the text column. It now runs full
+   bleed from under the header to the footer, with the contents rail on top
+   of it, and the progress bar stands vertically beside the rail. */
+
+body.has-toc {
+  background: #fff !important;
+}
+
+body.has-toc main {
+  max-width: 1140px;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 40px;
+  padding: 30px 32px 70px;
+}
+
+body.has-toc main > .doc-sheet { display: none !important; }
+
+body.has-toc main > section > .wrap { padding: 0 !important; }
+
+body.has-toc .site-footer,
+body.has-toc .site-header { background: #fff !important; }
+body.has-toc .site-header { border-bottom: 1px solid var(--hairline); }
+
+/* contents rail sits beside a vertical progress track */
+body.has-toc main > .toc {
+  position: sticky;
+  top: 100px;
+  display: grid;
+  grid-template-columns: 8px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.toc h4 { grid-column: 2; }
+.toc ul { grid-column: 2; border-left: none; }
+
+.toc .track {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 8px;
+  border-radius: 999px;
+  background: rgba(16, 20, 19, 0.10);
+  align-self: stretch;
+  min-height: 140px;
+  overflow: hidden;
+  position: relative;
+}
+
+.toc .track i {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E);
+}
+
+.toc a { padding: 7px 12px; border-radius: 999px; }
+
+.toc a.on {
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E);
+  border: 1px solid #4E9A2A;
+  color: #0B140A;
+  font-weight: 600;
+}
+
+/* the horizontal bar goes, the vertical one replaces it */
+.read-progress { display: none !important; }
+
+
+/* the real Robinhood mark, not my traced one */
+.btn-ca .rh { width: 14px; height: 14px; opacity: 0.85; flex: none; }
+
+/* ---------- Footer, one voice ------------------------------------------
+   Every line was a different size, weight and case. They now share one
+   type treatment and sit on one baseline grid, with only the address
+   values picked out. */
+
+.site-footer .wrap { align-items: center; }
+
+.foot-copy,
+.foot-links > a,
+.foot-row {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted) !important;
+  line-height: 1.9;
+}
+
+.foot-links { gap: 0; }
+
+.foot-row b {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #3E7A1E;
+  margin-left: 8px;
+}
+
+.foot-row svg { width: 13px; height: 13px; opacity: 0.45; margin-left: 8px; }
+
+
+/* The docs page turns everything white, including its own header, which
+   left the nav looking wrong against the rest of the site. The header keeps
+   the mint glass it has everywhere else. */
+body.has-toc .site-header {
+  background: linear-gradient(180deg, rgba(233, 245, 238, 0.92), rgba(205, 229, 216, 0.86)) !important;
+  backdrop-filter: blur(14px) saturate(1.15);
+}
+
+body.has-toc .site-footer { background: none !important; }
+
+/* Step numbers in the docs: black chip, white figure, same as Connect wallet */
+.step-num,
+.steps > li::before,
+.docs-step .n,
+.num {
+  background: linear-gradient(180deg, #2C3331, #101413) !important;
+  border: 1px solid #0A0D0C !important;
+  border-radius: 10px !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), var(--lift-1);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  display: inline-grid;
+  place-items: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+}
+
+
+/* external-link arrow on the Docs nav item */
+nav.primary a .ext { width: 12px; height: 12px; margin-left: 5px; opacity: 0.5; vertical-align: -1px; }
+nav.primary a:hover .ext { opacity: 0.85; }
+
+/* ---------- Contents rail: wider, and room to breathe ------------------ */
+
+body.has-toc main { grid-template-columns: 292px minmax(0, 1fr); gap: 46px; }
+
+.toc ul { display: flex; flex-direction: column; gap: 6px; }
+
+.toc a {
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.toc h4 { margin-bottom: 14px; }
+
+@media (max-width: 980px) {
+  body.has-toc main { grid-template-columns: 1fr; }
+}
+
+
+/* The step number was boxed twice: the base stylesheet draws the chip on
+   .num::before, and my rule was drawing another one on .num itself. The
+   wrapper goes back to being a plain cell; only the ::before is the chip. */
+.step .num {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  min-width: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  display: block !important;
+}
+
+.step .num::before {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #2C3331, #101413);
+  border: 1px solid #0A0D0C;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), var(--lift-1);
+}
+
+.step { grid-template-columns: 46px 1fr; gap: 22px; border-bottom-color: var(--hairline); }
+
+
+/* Footer stack: sits on the right, but each line reads left to right from a
+   shared left edge rather than being ragged. No copy icons; the wallet line
+   is a link straight to the explorer. */
+.foot-links {
+  align-items: flex-start;
+  text-align: left;
+  gap: 2px;
+}
+
+.foot-row svg, .foot-links svg { display: none; }
+.foot-row b { color: #3E7A1E; margin-left: 6px; }
+.foot-row[href]:hover { color: var(--ink) !important; }
+.foot-row[href]:hover b { text-decoration: underline; }
+
+/* external arrow on Docs: black and bigger */
+nav.primary a .ext {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  opacity: 1;
+  color: var(--ink);
+  stroke-width: 2.1;
+  vertical-align: -2px;
+}
+
+
+/* the Docs arrow inherits the nav link colour rather than being its own */
+nav.primary a .ext { color: currentColor; opacity: 1; }
+
+/* Hero CA button: bigger mark, tight to the text */
+.btn-ca { gap: 7px; padding: 11px 18px; font-size: 13.5px; }
+.btn-ca .rh { width: 20px; height: 20px; opacity: 1; margin-right: -1px; }
+.btn-ca svg:not(.rh) { width: 15px; height: 15px; margin-left: 2px; }
+
+/* Back to home on the docs page is a button, not a link */
+.btn-connect { text-decoration: none !important; }
+a.btn-connect:hover { text-decoration: none !important; }
+
+
+/* Docs is a reading view, so the header carries only the mark and the way
+   back. Nothing else competes with the contents rail. */
+body.has-toc .site-header .wrap { justify-content: space-between; }
+body.has-toc nav.primary { display: none; }
+
+
+/* Contents pills: narrower, and set further apart so the rail reads as a
+   list rather than a block of buttons. */
+.toc ul { gap: 10px; }
+
+.toc a {
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  padding: 7px 13px;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+
+body.has-toc main { grid-template-columns: 268px minmax(0, 1fr); }
+
+/* the Robinhood mark carries the CA button, so give it presence */
+.btn-ca .rh { width: 26px; height: 26px; margin-right: 1px; }
+.btn-ca { padding: 9px 18px 9px 14px; }
+
+
+/* stamp ahead of the DOCUMENTS heading */
+.doc-title { display: flex; align-items: center; gap: 14px; }
+.doc-stamp { width: 40px; height: 40px; flex: none; }
+
+
+/* ---------- Coin page art: colour band on top, same as the card --------- */
+
+.class-head .art {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  align-items: flex-end;
+}
+
+.class-head .art .band {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.02) 52%, rgba(0, 0, 0, 0.10)),
+    linear-gradient(180deg, var(--c, #4C5A56), color-mix(in srgb, var(--c, #4C5A56) 82%, #000));
+  border-bottom: 1px solid rgba(16, 20, 19, 0.22);
+  color: var(--ci, #fff);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.class-head .art img {
+  margin-top: 24px;
+  padding: 8px 10px 10px;
+  max-height: calc(100% - 24px);
+}
+
+
+/* The markets search matches the one on Property classes: a white pill with
+   the magnifier inside it, rather than a bare field. */
+.markets-toolbar { align-items: center; gap: 14px; flex-wrap: wrap; }
+
+.markets-toolbar .market-search {
+  flex: 1;
+  min-width: 260px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234A5451' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='9' cy='9' r='6'/%3E%3Cpath d='M13.5 13.5 17 17'/%3E%3C/svg%3E") 18px center / 17px no-repeat,
+    linear-gradient(180deg, #FFFFFF, #F8FBF9) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 999px !important;
+  box-shadow: var(--gloss), var(--lift-1) !important;
+  padding: 13px 18px 13px 45px !important;
+}
+
+.markets-toolbar .market-search:focus { box-shadow: var(--gloss), var(--lift-2) !important; }
+
+
+/* Home page headings take the accent gradient rather than black. Scoped to
+   the home page only for now, so the rest of the site is unaffected. */
+body.is-home .hero h1,
+body.is-home .section-head h2 {
+  background: linear-gradient(180deg, #7BD447, #2F6B17) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+  padding-bottom: 0.06em;
+}
+
+
+/* Hover on the primary button stays the same gradient, just a touch
+   brighter. It was jumping to a different green, which read as a fault. */
+.btn-primary:hover,
+.btn-lime:hover {
+  background: linear-gradient(180deg, #CCFFA8, #88E45A) !important;
+  filter: none !important;
+}
+
+.btn-primary:active, .btn-lime:active { filter: brightness(0.97) !important; }
+
+
+/* Each letter carries the Launch a coin gradient in full, so the headings
+   and the button are the same colour run rather than a stretched version. */
+body.is-home .hero h1.is-split,
+body.is-home .section-head h2.is-split {
+  background: none !important;
+  -webkit-text-fill-color: initial !important;
+  color: var(--ink) !important;
+}
+
+body.is-home .gl {
+  display: inline-block;
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  padding-bottom: 0.04em;
+}
+
+
+/* Headings are plain black. The gradient, per line or per letter, never
+   looked right against the ground. */
+body.is-home .hero h1,
+body.is-home .section-head h2,
+body.is-home .gl {
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: #0B0B0B !important;
+  color: #0B0B0B !important;
+}
+
+
+/* Home shows a preview of the newest launches; the full list, with filters,
+   lives on Browse markets. */
+body.is-home .market-filters { display: none !important; }
+
+body.is-home .markets-toolbar .market-search {
+  flex: 1 1 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+/* ---------- Browse markets: filter bar ---------------------------------- */
+
+.browse-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.browse-filters select {
+  appearance: none;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234A5451' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E") right 14px center / 15px no-repeat,
+    linear-gradient(180deg, #FFFFFF, #F8FBF9) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 999px !important;
+  box-shadow: var(--gloss), var(--lift-1) !important;
+  padding: 10px 38px 10px 16px !important;
+  font-family: var(--font-ui) !important;
+  font-size: 13.5px !important;
+  color: var(--ink) !important;
+  cursor: pointer;
+}
+
+.browse-filters .count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+
+/* Hero art: the town sits straight on the ground, no card behind it. */
+.hero-town {
+  margin: 0;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-town img {
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 18px 26px rgba(16, 40, 30, 0.18));
+}
+
+@media (max-width: 900px) {
+  .hero-town { margin-top: 26px; }
+  .hero-town img { max-width: 420px; margin: 0 auto; }
+}
+
+
+/* Browse markets always shows its search and filters, even before the
+   chain responds. */
+
+
+/* ---------- Branded dropdowns -------------------------------------------
+   A native select cannot be styled once it is open, so the list came up in
+   the OS blue. These are our own, so the open state matches the site. */
+
+.browse-filters { position: relative; z-index: 20; }
+
+.dd { position: relative; }
+
+.dd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, #FFFFFF, #F8FBF9);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  box-shadow: var(--gloss), var(--lift-1);
+  padding: 11px 16px;
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dd-btn svg { width: 14px; height: 14px; opacity: 0.5; }
+.dd-btn:hover { border-color: #cfd2c9; }
+.dd.open .dd-btn { border-color: #4E9A2A; }
+.dd.open .dd-btn svg { transform: rotate(180deg); }
+
+.dd-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  box-shadow: var(--lift-2);
+  padding: 6px;
+  z-index: 40;
+}
+
+.dd.open .dd-menu { display: block; }
+
+.dd-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.dd-menu button:hover { background: rgba(16, 20, 19, 0.05); }
+
+.dd-menu button[aria-selected="true"] {
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E);
+  color: #0B140A;
+  font-weight: 600;
+}
+
+/* The class rows carry the render itself rather than a colour chip. */
+.dd-menu .sw {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex: none;
+}
+
+.dd-menu .sw-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(16, 20, 19, 0.25);
+}
+
+.dd-menu button { padding: 7px 11px; }
+
+/* search spans the row above the filters */
+
+
+/* ---------- Live markets toolbar: one row, search takes the slack -------- */
+
+body.is-home .markets-toolbar {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+/* style.css caps this field at 420px, which is what stopped it reaching the
+   button. Clear the cap and let it take every pixel up to Browse markets. */
+body.is-home .markets-toolbar .market-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  max-width: none !important;
+}
+body.is-home .markets-toolbar .btn { flex: none; }
+
+@media (max-width: 640px) {
+  body.is-home .markets-toolbar { flex-wrap: wrap; }
+  body.is-home .markets-toolbar .market-search { flex: 1 1 100%; max-width: none !important; }
+}
+
+/* ---------- Loading state sits where the markets land -------------------- */
+
+#markets-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 120px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+#markets-status:empty { display: none; }
+
+#markets-status.is-loading::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(16, 20, 19, 0.16);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  #markets-status.is-loading::before { animation-duration: 2.4s; }
+}
+
+
+/* ---------- Browse markets toolbar --------------------------------------
+   The search is its own full width row, exactly the site width and the same
+   pill as Property classes. Filters sit on the row under it. */
+
+body.is-browse .markets-toolbar {
+  display: block !important;
+  margin-top: 30px;
+}
+
+body.is-browse .markets-toolbar .market-search {
+  display: block;
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none !important;
+  flex: none !important;
+  min-width: 0 !important;
+  font-size: 15px !important;
+  padding: 14px 20px 14px 47px !important;
+  background-position: 20px center !important;
+}
+
+body.is-browse .browse-filters { margin-top: 14px; }
+
+
+/* ---------- Ground treatments -------------------------------------------
+   Four numbered background variations to choose between, switched with
+   ?bg=1..4 in the URL. Nothing is committed until one is picked: with no
+   parameter the ground stays exactly as it was.
+
+   All four are one fixed layer behind the content, pure CSS, no images, so
+   they cost nothing to load and never scroll out of register. */
+
+body[data-bg]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* 1. Plot grid. A surveyor's plan: fine white lines with a heavier one every
+      fifth, so the whole site sits on a parcel map. */
+body[data-bg="1"]::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    linear-gradient(rgba(11, 20, 16, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(11, 20, 16, 0.055) 1px, transparent 1px);
+  background-size: 44px 44px, 44px 44px, 220px 220px, 220px 220px;
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 30%, transparent 85%);
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 30%, transparent 85%);
+}
+
+/* 2. Soft blooms. Large diffuse light behind the page, nothing readable,
+      just depth. */
+body[data-bg="2"]::before {
+  background-image:
+    radial-gradient(760px 520px at 12% -5%, rgba(255, 255, 255, 0.85), transparent 65%),
+    radial-gradient(680px 480px at 92% 8%, rgba(255, 255, 255, 0.6), transparent 62%),
+    radial-gradient(900px 700px at 70% 92%, rgba(126, 178, 150, 0.3), transparent 68%);
+}
+
+/* 3. Contours. Slow topographic bands, like land survey lines under
+      everything. */
+body[data-bg="3"]::before {
+  background-image:
+    repeating-radial-gradient(circle at 78% 18%,
+      transparent 0 58px,
+      rgba(255, 255, 255, 0.5) 58px 60px),
+    repeating-radial-gradient(circle at 14% 86%,
+      transparent 0 72px,
+      rgba(11, 20, 16, 0.04) 72px 74px);
+  -webkit-mask-image: linear-gradient(180deg, #000, rgba(0, 0, 0, 0.25));
+  mask-image: linear-gradient(180deg, #000, rgba(0, 0, 0, 0.25));
+}
+
+/* 4. Board. The Monopoly reference read literally: a faint dot matrix with a
+      soft vignette pulling the edges down like a printed board. */
+body[data-bg="4"]::before {
+  background-image:
+    radial-gradient(rgba(11, 20, 16, 0.11) 1.4px, transparent 1.5px),
+    radial-gradient(140% 100% at 50% 50%, transparent 55%, rgba(11, 20, 16, 0.09));
+  background-size: 26px 26px, 100% 100%;
+}
+
+@media (max-width: 640px) {
+  body[data-bg="1"]::before { background-size: 32px 32px, 32px 32px, 160px 160px, 160px 160px; }
+  body[data-bg="4"]::before { background-size: 20px 20px, 100% 100%; }
+}
+
+
+/* Property classes page: every render steps down together. A transform keeps
+   each one's own size relative to the others exactly as it was. */
+body.is-classes .tile.has-art .glyph img {
+  transform: scale(0.92);
+  transform-origin: center bottom;
+}
+
+
+/* Launch page title carries the USDG mark in a green plate, the same badge
+   treatment the Documents title uses. */
+.launch-stamp {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #9BE36A, #56A82E);
+  border: 1px solid #3F8420;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), var(--lift-1);
+}
+
+.launch-stamp img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  display: block;
+}
+
+
+/* ---------- Glass surfaces ----------------------------------------------
+   Every white container on the site, one treatment: slightly see through so
+   the ground reads underneath, a blur behind it, an inner top highlight and
+   a fixed diagonal sheen across the top left. Nothing animates.
+
+   Inner rows are cleared to transparent, otherwise a solid child sits on top
+   of its translucent parent and the whole thing reads opaque again. */
+
+.tile,
+.market-card,
+.spec,
+.statrow,
+.panel,
+.card,
+.box,
+.class-search,
+.dd-btn,
+.dd-menu,
+.markets-toolbar .market-search,
+.launch-grid input[type="text"],
+.launch-grid input[type="number"],
+.launch-grid input[type="url"],
+.launch-grid select,
+.launch-grid textarea {
+  position: relative;
+  background:
+    linear-gradient(162deg,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0.26) 44%,
+      rgba(255, 255, 255, 0.42) 100%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.045),
+    0 18px 24px -12px rgba(86, 168, 46, 0.2),
+    0 5px 10px -5px rgba(86, 168, 46, 0.14) !important;
+}
+
+/* containers that carry a sheen have to clip it */
+.tile,
+.market-card,
+.spec,
+.statrow,
+.panel,
+.card { overflow: hidden; }
+
+/* the sheen. .tile already uses ::before for its colour band, so this is
+   ::after everywhere for consistency. */
+.tile::after,
+.market-card::after,
+.spec::after,
+.statrow::after,
+.panel::after,
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(118deg,
+    rgba(255, 255, 255, 0) 22%,
+    rgba(255, 255, 255, 0.96) 50%,
+    rgba(255, 255, 255, 0) 78%);
+}
+
+.tile > *,
+.market-card > *,
+.spec > *,
+.statrow > *,
+.panel > *,
+.card > * { position: relative; z-index: 2; }
+
+/* inner rows and cells: no fill of their own */
+.spec-row,
+.statrow .stat,
+.panel .spec,
+.market-card-head,
+.launch-grid > div > div:not(.spec-row) {
+  background: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none !important;
+}
+
+.panel .spec { border: none !important; }
+
+/* single line fields take a flatter sheen, they are too short for a diagonal */
+.class-search,
+.dd-btn,
+.markets-toolbar .market-search,
+.launch-grid input[type="text"],
+.launch-grid input[type="number"],
+.launch-grid input[type="url"],
+.launch-grid select {
+  background-image:
+    linear-gradient(100deg,
+      rgba(255, 255, 255, 0.82) 12%,
+      rgba(255, 255, 255, 0.38) 46%,
+      rgba(255, 255, 255, 0.74) 84%) !important;
+}
+
+/* the markets search keeps its magnifier, so the sheen goes under it */
+.markets-toolbar .market-search {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234A5451' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='9' cy='9' r='6'/%3E%3Cpath d='M13.5 13.5 17 17'/%3E%3C/svg%3E"),
+    linear-gradient(100deg,
+      rgba(255, 255, 255, 0.82) 12%,
+      rgba(255, 255, 255, 0.38) 46%,
+      rgba(255, 255, 255, 0.74) 84%) !important;
+  background-repeat: no-repeat, no-repeat !important;
+  background-position: 20px center, 0 0 !important;
+  background-size: 17px, 100% 100% !important;
+}
+
+/* the dropdown panel sits over content, so it needs more body than a card */
+.dd-menu {
+  background:
+    linear-gradient(162deg,
+      rgba(255, 255, 255, 0.88) 0%,
+      rgba(255, 255, 255, 0.78) 100%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  backdrop-filter: blur(22px) saturate(1.2);
+}
+
+.tile:hover,
+.market-card:hover {
+  background:
+    linear-gradient(162deg,
+      rgba(255, 255, 255, 0.8) 0%,
+      rgba(255, 255, 255, 0.54) 44%,
+      rgba(255, 255, 255, 0.72) 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.05),
+    0 24px 30px -14px rgba(86, 168, 46, 0.28),
+    0 6px 12px -6px rgba(86, 168, 46, 0.18) !important;
+}
+
+/* the documents page stays solid, it is a document not a card */
+body.has-toc main > section,
+body.has-toc .site-header {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+
+/* ---------- Glass on single line fields ---------------------------------
+   A blurred backdrop paints to the border box, not the border radius, unless
+   the element clips. On a pill that shows up as a square of blur sticking out
+   behind the rounded ends. Fields clip themselves and the fill is lifted a
+   little to make up for the lighter blur. */
+
+.class-search,
+.dd-btn,
+.markets-toolbar .market-search,
+.launch-grid input[type="text"],
+.launch-grid input[type="number"],
+.launch-grid input[type="url"],
+.launch-grid select,
+.launch-grid textarea {
+  overflow: hidden;
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+  backdrop-filter: blur(10px) saturate(1.15);
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  background-clip: padding-box !important;
+}
+
+.class-search,
+.dd-btn,
+.markets-toolbar .market-search,
+.launch-grid input[type="text"],
+.launch-grid input[type="number"],
+.launch-grid input[type="url"],
+.launch-grid select {
+  background-image:
+    linear-gradient(100deg,
+      rgba(255, 255, 255, 0.34) 6%,
+      rgba(255, 255, 255, 0.88) 50%,
+      rgba(255, 255, 255, 0.34) 94%) !important;
+}
+
+.markets-toolbar .market-search {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234A5451' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='9' cy='9' r='6'/%3E%3Cpath d='M13.5 13.5 17 17'/%3E%3C/svg%3E"),
+    linear-gradient(100deg,
+      rgba(255, 255, 255, 0.34) 6%,
+      rgba(255, 255, 255, 0.88) 50%,
+      rgba(255, 255, 255, 0.34) 94%) !important;
+  background-repeat: no-repeat, no-repeat !important;
+  background-position: 20px center, 0 0 !important;
+  background-size: 17px, 100% 100% !important;
+}
+
+
+/* the lime cast carries under the pills and the dropdown panel too */
+.class-search,
+.dd-btn,
+.dd-menu,
+.markets-toolbar .market-search,
+.launch-grid input[type="text"],
+.launch-grid input[type="number"],
+.launch-grid input[type="url"],
+.launch-grid select,
+.launch-grid textarea {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.04),
+    0 14px 20px -11px rgba(86, 168, 46, 0.18),
+    0 4px 8px -4px rgba(86, 168, 46, 0.12) !important;
+}
+
+
+/* ---------- Fields: gloss, not a streak ---------------------------------
+   A diagonal streak across an element that is very wide and only one line
+   tall reads as a stripe down the middle, which is the line showing on the
+   Browse markets search. Wide fields take a straight top to bottom gloss
+   instead. */
+
+.class-search,
+.dd-btn,
+.markets-toolbar .market-search,
+.launch-grid input[type="text"],
+.launch-grid input[type="number"],
+.launch-grid input[type="url"],
+.launch-grid select {
+  background-image:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.68) 0%,
+      rgba(255, 255, 255, 0.34) 55%,
+      rgba(255, 255, 255, 0.46) 100%) !important;
+}
+
+.markets-toolbar .market-search {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234A5451' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='9' cy='9' r='6'/%3E%3Cpath d='M13.5 13.5 17 17'/%3E%3C/svg%3E"),
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.68) 0%,
+      rgba(255, 255, 255, 0.34) 55%,
+      rgba(255, 255, 255, 0.46) 100%) !important;
+  background-repeat: no-repeat, no-repeat !important;
+  background-position: 20px center, 0 0 !important;
+  background-size: 17px, 100% 100% !important;
+}
+
+
+/* ---------- Nav bar and the hero CA plate -------------------------------
+   Same shine as the cards. The nav takes no green cast, it sits on the
+   header rather than on the ground. */
+
+nav.primary a[aria-current="page"],
+.btn-ca {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(118deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0.94) 34%,
+      rgba(255, 255, 255, 0.94) 50%,
+      rgba(255, 255, 255, 0.42) 84%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(1.12);
+  backdrop-filter: blur(10px) saturate(1.12);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+}
+
+nav.primary a[aria-current="page"] {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.05),
+    0 4px 10px -4px rgba(11, 20, 16, 0.16) !important;
+}
+
+/* the CA plate sits on the ground, so it keeps the faint green underneath */
+.btn-ca {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.05),
+    0 16px 22px -12px rgba(86, 168, 46, 0.2),
+    0 4px 9px -4px rgba(86, 168, 46, 0.13) !important;
+}
+
+.btn-ca {
+  background:
+    linear-gradient(118deg,
+      rgba(255, 255, 255, 0.34) 12%,
+      rgba(255, 255, 255, 0.96) 50%,
+      rgba(255, 255, 255, 0.34) 88%) !important;
+}
+
+
+/* A link set into running copy as a green pill. */
+.inline-pill {
+  display: inline-block;
+  padding: 2px 11px 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #9BE36A, #56A82E);
+  border: 1px solid #3F8420;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  color: #0B140A !important;
+  font-weight: 600;
+  text-decoration: none !important;
+  border-bottom: none !important;
+  line-height: 1.35;
+}
+
+.inline-pill:hover {
+  background: linear-gradient(180deg, #A9EC7B, #62B838);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 3px 8px -3px rgba(86, 168, 46, 0.5);
+}
+
+
+/* ---------- Docs page ground --------------------------------------------
+   The sheet under the documents is the site's mint rather than flat white,
+   with one broad shine crossing it, the same light the cards catch. The
+   header is left exactly as it was. */
+
+body.has-toc {
+  background:
+    radial-gradient(1200px 620px at 50% -140px, var(--ground-hi), transparent 70%),
+    linear-gradient(180deg, var(--ground), #C3DED0) !important;
+  background-attachment: fixed, fixed !important;
+}
+
+body.has-toc .site-footer { background: none !important; }
+
+/* the contents rail and its panels keep a light plate so the list still
+   reads as a rail against the mint */
+body.has-toc main > .toc {
+  background:
+    linear-gradient(162deg,
+      rgba(255, 255, 255, 0.58) 0%,
+      rgba(255, 255, 255, 0.34) 100%);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(14px) saturate(1.15);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 16px 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 16px 22px -12px rgba(86, 168, 46, 0.18);
+}
+
+
+/* ---------- Hero: the island runs the full width ------------------------
+   The headline and lede sit above its left end, where the small classes
+   are, and the castle carries the right. */
+
+body.is-home .hero-grid {
+  grid-template-columns: 1fr;
+  gap: 0;
+  align-items: start;
+}
+
+body.is-home .hero-grid > div:first-child { max-width: 680px; }
+
+body.is-home .hero-town {
+  width: 100%;
+  margin-top: -18px;
+  justify-content: flex-start;
+}
+
+body.is-home .hero-town img {
+  width: 100%;
+  max-width: 100%;
+  filter: drop-shadow(0 26px 30px rgba(16, 40, 30, 0.16));
+}
+
+@media (max-width: 860px) {
+  body.is-home .hero-town { margin-top: 6px; }
+}
+
+
+/* ---------- Docs page: glass on the rail and every panel ---------------- */
+
+body.has-toc main > .toc,
+body.has-toc .spec,
+body.has-toc .panel,
+body.has-toc .card,
+body.has-toc table {
+  background:
+    linear-gradient(162deg,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0.26) 44%,
+      rgba(255, 255, 255, 0.42) 100%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.045),
+    0 18px 24px -12px rgba(86, 168, 46, 0.2),
+    0 5px 10px -5px rgba(86, 168, 46, 0.14) !important;
+}
+
+
+/* ---------- Launch pickers ----------------------------------------------
+   The class buttons and the chip behind each render were plain white. Same
+   glass as everything else, and the chip matches the image containers. */
+
+.class-opt,
+.class-opt .chip {
+  background:
+    linear-gradient(162deg,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0.26) 44%,
+      rgba(255, 255, 255, 0.42) 100%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.18);
+  backdrop-filter: blur(16px) saturate(1.18);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  overflow: hidden;
+}
+
+.class-opt {
+  position: relative;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.045),
+    0 16px 22px -12px rgba(86, 168, 46, 0.18),
+    0 4px 9px -4px rgba(86, 168, 46, 0.12) !important;
+}
+
+/* the streak is painted into the button rather than laid over it, so it
+   never sits on top of the render or the label */
+.class-opt {
+  background:
+    linear-gradient(118deg,
+      rgba(255, 255, 255, 0.3) 14%,
+      rgba(255, 255, 255, 0.92) 50%,
+      rgba(255, 255, 255, 0.3) 86%) !important;
+}
+
+/* the chip behind each render keeps a plain gloss, it is too small to carry
+   a streak of its own */
+.class-opt .chip {
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(255, 255, 255, 0.44) 100%) !important;
+}
+
+
+/* ---------- Outline buttons take the green on hover --------------------- */
+
+.btn-outline:hover {
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  border-color: #4E9A2A !important;
+  color: #0B140A !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 16px 22px -12px rgba(86, 168, 46, 0.4),
+    0 4px 9px -4px rgba(86, 168, 46, 0.26) !important;
+}
+
+.btn-outline:hover svg { color: #0B140A; }
+
+
+/* the inline pill matches the pills set into the ledes elsewhere */
+.inline-pill {
+  padding: 2px 11px;
+  margin: 0 1px;
+  font-size: 0.86em;
+  font-weight: 600;
+  line-height: 1.5;
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  border: 1px solid #4E9A2A;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+
+/* ---------- Hero order: words, island, buttons -------------------------- */
+
+body.is-home .hero-grid {
+  display: block;
+}
+
+body.is-home .hero-grid > div:first-child { max-width: 760px; }
+
+body.is-home .hero-town {
+  width: 100%;
+  margin: -6px 0 0;
+  justify-content: flex-end;
+}
+
+body.is-home .hero-town img {
+  width: 62%;
+  max-width: 62%;
+  margin-right: 0;
+}
+
+body.is-home .hero-actions { margin-top: 6px; }
+
+@media (max-width: 860px) {
+  body.is-home .hero-town { justify-content: center; margin-top: 10px; }
+  body.is-home .hero-town img { width: 100%; max-width: 100%; }
+}
+
+
+/* ---------- Hero: tighter, and the island carries more width ------------
+   Order is the headline, the island, then the lede with the buttons under
+   it. The art had a lot of dead space around it, so the margins are pulled
+   in on every side. */
+
+body.is-home .hero { padding: 60px 0 24px !important; }
+
+body.is-home .hero-grid > div:first-child { max-width: 820px; }
+
+body.is-home .hero-grid > div:first-child h1 { margin-bottom: 0 !important; }
+
+body.is-home .hero-town {
+  width: 100%;
+  margin: -34px 0 -30px !important;
+  justify-content: flex-end;
+}
+
+body.is-home .hero-town img {
+  width: 76%;
+  max-width: 76%;
+}
+
+body.is-home .hero .lede { max-width: 680px; margin-bottom: 0; }
+
+body.is-home .hero-actions { margin-top: 18px !important; }
+
+@media (max-width: 860px) {
+  body.is-home .hero-town { justify-content: center; margin: -10px 0 0 !important; }
+  body.is-home .hero-town img { width: 100%; max-width: 100%; }
+}
+
+
+/* ---------- Fields: no backdrop blur ------------------------------------
+   An input does not clip its own backdrop, so the blur keeps painting to the
+   rectangle and shows as a hard box behind the rounded ends. The translucent
+   fill alone gives the same look with none of that. */
+
+.markets-toolbar .market-search,
+.class-search input,
+input[type="text"],
+input[type="number"],
+input[type="url"],
+input[type="search"],
+select,
+textarea {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.markets-toolbar .market-search {
+  background-color: rgba(255, 255, 255, 0.42) !important;
+}
+
+
+/* ---------- Hero spacing ------------------------------------------------
+   The art sat low with a gap above it. It moves up under the headline and
+   the room goes underneath instead. */
+
+body.is-home .hero { padding: 48px 0 44px !important; }
+
+body.is-home .hero-grid > div:first-child h1 {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+body.is-home .hero-town { margin: -56px 0 -14px !important; }
+
+body.is-home .hero-actions { margin-top: 22px !important; }
+
+@media (max-width: 860px) {
+  body.is-home .hero-town { margin: -10px 0 0 !important; }
+}
+
+
+/* ---------- Launch page image drop --------------------------------------
+   Same glass as the pickers, with the dashed edge kept so it still reads as
+   somewhere to drop a file. */
+
+.dropzone {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(118deg,
+      rgba(255, 255, 255, 0.3) 14%,
+      rgba(255, 255, 255, 0.92) 50%,
+      rgba(255, 255, 255, 0.3) 86%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.18);
+  backdrop-filter: blur(16px) saturate(1.18);
+  border: 1.5px dashed rgba(11, 20, 16, 0.3) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 16px 22px -12px rgba(86, 168, 46, 0.18),
+    0 4px 9px -4px rgba(86, 168, 46, 0.12) !important;
+}
+
+.dropzone:hover {
+  border-color: rgba(86, 168, 46, 0.6) !important;
+}
+
+
+/* ---------- Scrollbar ----------------------------------------------------
+   The page scrollbar takes the site's own gradient instead of the browser's
+   grey. Firefox only accepts flat colours, so it gets the midpoint. */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #7FD84E rgba(255, 255, 255, 0.35);
+}
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E);
+  border: 2.5px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #7FD84E, #4E9A2A);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner { background: transparent; }
+
+
+/* ---------- Hero: the island tucks up beside the headline ---------------
+   The art runs on a diagonal, so the top left of the file is empty. Pulling
+   it up lets the headline sit in that empty corner instead of leaving a hole
+   under it, and the lede comes up to meet the bottom of the islands. */
+
+body.is-home .hero { padding: 44px 0 40px !important; }
+
+body.is-home .hero-town { margin: -168px 0 -34px !important; }
+
+body.is-home .hero-town img {
+  width: 72%;
+  max-width: 72%;
+  filter:
+    drop-shadow(0 14px 10px rgba(16, 40, 30, 0.16))
+    drop-shadow(0 3px 3px rgba(16, 40, 30, 0.1));
+}
+
+body.is-home .hero .lede { margin-top: 0; }
+
+@media (max-width: 860px) {
+  body.is-home .hero-town { margin: -10px 0 0 !important; }
+  body.is-home .hero-town img { width: 100%; max-width: 100%; }
+}
+
+
+/* the tent island hangs lowest, so the lede needs clearance under the art */
+body.is-home .hero-town { margin: -168px 0 10px !important; }
+
+
+/* ---------- Stone coursing ----------------------------------------------
+   The ground carries a very faint running bond, the way a castle wall is
+   laid: each course offset by half a stone. One fixed layer, so it does not
+   travel as the page scrolls, and it fades out down the page so it never
+   competes with the content. Any ?bg= treatment still overrides it. */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='88'%3E%3Cg stroke='%230B1410' stroke-opacity='0.055' stroke-width='1.3' fill='none'%3E%3Cpath d='M0 .65H192M0 44.65H192M0 87.35H192'/%3E%3Cpath d='M.65 0V44M96.65 0V44M48.65 44V88M144.65 44V88'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.45) 60%, rgba(0, 0, 0, 0.2) 100%);
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.45) 60%, rgba(0, 0, 0, 0.2) 100%);
+}
+
+body[data-bg="5"]::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='88'%3E%3Cg stroke='%230B1410' stroke-opacity='0.055' stroke-width='1.3' fill='none'%3E%3Cpath d='M0 .65H192M0 44.65H192M0 87.35H192'/%3E%3Cpath d='M.65 0V44M96.65 0V44M48.65 44V88M144.65 44V88'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+@media (max-width: 640px) {
+  body::before { background-size: 134px 62px; }
+}
+
+
+/* ---------- Stone coursing: each stone lit on its own -------------------
+   Every stone in the tile carries its own soft gradient, brighter at its top
+   left and falling away, with the strength varied stone to stone so the wall
+   does not read as a mechanical repeat. */
+
+body::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='88'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.62'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='b' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.34'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='c' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.5'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='d' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.24'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='e' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.44'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='f' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.18'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='0' y='0' width='95' height='43' rx='2' fill='url(%23a)'/%3E%3Crect x='96' y='0' width='95' height='43' rx='2' fill='url(%23b)'/%3E%3Crect x='-48' y='44' width='95' height='43' rx='2' fill='url(%23c)'/%3E%3Crect x='48' y='44' width='95' height='43' rx='2' fill='url(%23d)'/%3E%3Crect x='144' y='44' width='95' height='43' rx='2' fill='url(%23e)'/%3E%3Cg stroke='%230B1410' stroke-opacity='.05' stroke-width='1.2' fill='none'%3E%3Cpath d='M0 .6H192M0 44.6H192M0 87.4H192'/%3E%3Cpath d='M.6 0V44M96.6 0V44M48.6 44V88M144.6 44V88'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 192px 88px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.5) 62%, rgba(0, 0, 0, 0.24) 100%);
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.5) 62%, rgba(0, 0, 0, 0.24) 100%);
+}
+
+@media (max-width: 640px) {
+  body::before { background-size: 144px 66px; }
+}
+
+
+/* ---------- Stone coursing: larger stones, fainter joints ---------------- */
+
+body::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='264' height='120'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.6'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='b' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.32'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='c' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.48'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='d' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.22'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='e' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.42'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='0' y='0' width='131' height='59' rx='3' fill='url(%23a)'/%3E%3Crect x='132' y='0' width='131' height='59' rx='3' fill='url(%23b)'/%3E%3Crect x='-66' y='60' width='131' height='59' rx='3' fill='url(%23c)'/%3E%3Crect x='66' y='60' width='131' height='59' rx='3' fill='url(%23d)'/%3E%3Crect x='198' y='60' width='131' height='59' rx='3' fill='url(%23e)'/%3E%3Cg stroke='%230B1410' stroke-opacity='.028' stroke-width='1' fill='none'%3E%3Cpath d='M0 .5H264M0 60.5H264M0 119.5H264'/%3E%3Cpath d='M.5 0V60M132.5 0V60M66.5 60V120M198.5 60V120'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 264px 120px;
+}
+
+@media (max-width: 640px) {
+  body::before { background-size: 198px 90px; }
+}
+
+
+/* ---------- Hero board --------------------------------------------------
+   The plane is tilted once, and every render is counter rotated by exactly
+   the same angles so it stands upright on its square facing the reader. */
+
+.board-stage {
+  perspective: 1100px;
+  perspective-origin: 50% 38%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 0 10px;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, 132px);
+  gap: 12px;
+  transform-style: preserve-3d;
+  transform: rotateX(56deg) rotateZ(-40deg);
+}
+
+.board .sq {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  transform-style: preserve-3d;
+  border-radius: 9px;
+  border: 1px solid rgba(11, 20, 16, 0.16);
+  background: linear-gradient(150deg, #FFFFFF, #F1F7F3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 16px -8px rgba(11, 20, 16, 0.3);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(11, 20, 16, 0.16);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.board .sq .name {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 30px;
+  border-radius: 0 8px 8px 0;
+  border-left: 1px solid rgba(11, 20, 16, 0.16);
+  background: linear-gradient(180deg, var(--c), var(--c));
+  color: var(--ci, #fff);
+  display: grid;
+  place-items: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.board .sq .art {
+  position: absolute;
+  inset: 0 30px 0 0;
+  display: grid;
+  place-items: center;
+  transform-style: preserve-3d;
+}
+
+/* the exact inverse of the board's own rotation, so each piece faces front */
+.board .sq .art img {
+  width: 86%;
+  height: auto;
+  transform: rotateZ(40deg) rotateX(-56deg) translateY(-6px);
+  transform-origin: center bottom;
+  filter: drop-shadow(0 10px 7px rgba(11, 20, 16, 0.26));
+}
+
+.board .sq:hover {
+  transform: translateZ(18px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 22px 26px -12px rgba(11, 20, 16, 0.34);
+}
+
+@media (max-width: 980px) {
+  .board { grid-template-columns: repeat(4, 104px); gap: 9px; }
+  .board .sq { width: 104px; height: 104px; }
+}
+
+@media (max-width: 700px) {
+  .board { grid-template-columns: repeat(2, 118px); }
+  .board .sq { width: 118px; height: 118px; }
+}
+
+
+/* the pill in the markets copy is the pill used in the ledes, exactly */
+.inline-pill {
+  display: inline-block;
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  border: 1px solid #4E9A2A;
+  border-radius: 999px;
+  padding: 2px 11px;
+  margin: 0 1px;
+  color: #0B140A !important;
+  font-size: 0.86em;
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: filter 0.15s ease;
+}
+
+.inline-pill:hover { filter: brightness(1.06); background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+
+
+/* ---------- Stone coursing: faded well back -----------------------------
+   The light on each stone is roughly half what it was and the joints are
+   barely there, so the wall is felt rather than read. */
+
+body::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='264' height='120'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.3'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='b' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.14'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='c' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.23'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='d' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.09'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='e' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.19'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='0' y='0' width='131' height='59' rx='3' fill='url(%23a)'/%3E%3Crect x='132' y='0' width='131' height='59' rx='3' fill='url(%23b)'/%3E%3Crect x='-66' y='60' width='131' height='59' rx='3' fill='url(%23c)'/%3E%3Crect x='66' y='60' width='131' height='59' rx='3' fill='url(%23d)'/%3E%3Crect x='198' y='60' width='131' height='59' rx='3' fill='url(%23e)'/%3E%3Cg stroke='%230B1410' stroke-opacity='.016' stroke-width='1' fill='none'%3E%3Cpath d='M0 .5H264M0 60.5H264M0 119.5H264'/%3E%3Cpath d='M.5 0V60M132.5 0V60M66.5 60V120M198.5 60V120'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 264px 120px;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.34) 55%, rgba(0, 0, 0, 0.12) 100%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.34) 55%, rgba(0, 0, 0, 0.12) 100%);
+}
+
+
+/* ---------- Hero board: front labels, board to the right ----------------
+   The colour band moves to the square's front edge, the one facing the
+   reader once the plane is tilted, so the tier reads instead of running away
+   into the back corner. The render then centres in the white that is left. */
+
+.board-stage {
+  justify-content: flex-end;
+  padding: 0 0 6px;
+  margin-top: -96px;
+}
+
+.board { transform: rotateX(54deg) rotateZ(-38deg); }
+
+.board .sq .name {
+  inset: auto 0 0 0;
+  width: auto;
+  height: 30px;
+  writing-mode: horizontal-tb;
+  border-left: none;
+  border-top: 1px solid rgba(11, 20, 16, 0.16);
+  border-radius: 0 0 8px 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+}
+
+.board .sq .art {
+  inset: 0 0 30px 0;
+}
+
+.board .sq .art img {
+  width: 80%;
+  transform: rotateZ(38deg) rotateX(-54deg) translateY(-2px);
+}
+
+/* the lede needs to clear the front row of squares */
+body.is-home .hero .lede { margin-top: 18px; }
+
+@media (max-width: 980px) {
+  .board-stage { margin-top: -40px; }
+}
+
+@media (max-width: 700px) {
+  .board-stage { justify-content: center; margin-top: 0; }
+}
+
+
+/* the near corner of the board was clipping the lede, so the plane lifts and
+   shifts right and the copy takes a little more room under it */
+.board-stage { margin-top: -112px; }
+
+.board { transform: translateX(34px) rotateX(54deg) rotateZ(-38deg); }
+
+body.is-home .hero .lede { margin-top: 34px; }
+
+@media (max-width: 980px) {
+  .board-stage { margin-top: -40px; }
+  .board { transform: rotateX(54deg) rotateZ(-38deg); }
+}
+
+
+/* The pieces were rotating about their bottom edge, which swings the whole
+   render sideways off the square. Rotating about the centre keeps each one
+   sitting in the middle of its tile, and the lift is applied in screen space
+   before the rotations rather than after. */
+
+.board .sq .art img {
+  transform-origin: 50% 50%;
+  transform: translateY(-8px) rotateZ(38deg) rotateX(-54deg);
+}
+
+
+/* ---------- Scrollbar: black, like the Connect wallet plate ------------- */
+
+* {
+  scrollbar-color: #1A201E rgba(255, 255, 255, 0.35);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2C3331, #101413);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3A423F, #171C1A);
+  background-clip: padding-box;
+}
+
+
+/* Each piece stands upright through the board plane, so rotating about its
+   centre buried the bottom half under the surface and the square clipped it
+   in a hard line. The last translate runs in the piece's own rotated frame,
+   lifting it up its standing plane until its base rests on the board. */
+
+.board .sq .art img {
+  transform-origin: 50% 50%;
+  transform: rotateZ(38deg) rotateX(-54deg) translateY(-46%);
+}
+
+
+/* Rotating about the base pins each piece where it stands: the bottom edge
+   stays put on the tile and the model tips up from there, so nothing drifts
+   off its square and nothing sinks below the surface. */
+
+.board .sq .art {
+  inset: 0 0 30px 0;
+  align-items: end;
+  justify-items: center;
+}
+
+.board .sq .art img {
+  transform-origin: 50% 100%;
+  transform: rotateZ(38deg) rotateX(-54deg);
+  width: 74%;
+}
+
+
+/* the pieces were sitting right of centre on their tiles. The shift is first
+   in the list so it happens in screen space, not in the rotated frame. */
+.board .sq .art img {
+  transform: translateX(-20px) rotateZ(38deg) rotateX(-54deg);
+}
+
+
+/* ---------- Board squares: glass face, no cast shadow ------------------- */
+
+.board .sq {
+  background:
+    linear-gradient(150deg,
+      rgba(255, 255, 255, 0.58) 0%,
+      rgba(255, 255, 255, 0.34) 46%,
+      rgba(255, 255, 255, 0.5) 100%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.18);
+  backdrop-filter: blur(16px) saturate(1.18);
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.04) !important;
+}
+
+.board .sq:hover {
+  transform: translateZ(18px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.05) !important;
+}
+
+/* the pieces cast nothing, they read as flat art standing on the tile */
+.board .sq .art img { filter: none; }
+
+
+/* ---------- Stone coursing: brought back up a little --------------------- */
+
+body::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='264' height='120'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.42'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='b' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.2'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='c' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.33'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='d' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.13'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='e' x1='0' y1='0' x2='.85' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.27'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='0' y='0' width='131' height='59' rx='3' fill='url(%23a)'/%3E%3Crect x='132' y='0' width='131' height='59' rx='3' fill='url(%23b)'/%3E%3Crect x='-66' y='60' width='131' height='59' rx='3' fill='url(%23c)'/%3E%3Crect x='66' y='60' width='131' height='59' rx='3' fill='url(%23d)'/%3E%3Crect x='198' y='60' width='131' height='59' rx='3' fill='url(%23e)'/%3E%3Cg stroke='%230B1410' stroke-opacity='.024' stroke-width='1' fill='none'%3E%3Cpath d='M0 .5H264M0 60.5H264M0 119.5H264'/%3E%3Cpath d='M.5 0V60M132.5 0V60M66.5 60V120M198.5 60V120'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 55%, rgba(0, 0, 0, 0.2) 100%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 55%, rgba(0, 0, 0, 0.2) 100%);
+}
+
+
+/* ---------- Board squares: glass on a face layer ------------------------
+   A backdrop filter flattens a 3D scene, so putting the glass on the square
+   itself laid every standing piece down flat on the board. The face is its
+   own layer now: it blurs and flattens only itself, and the square keeps its
+   3D so the pieces still stand. Same reason the square must not clip its
+   overflow, so the glow is clipped by its own radius instead. */
+
+.board .sq {
+  background: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.board .sq::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  background:
+    linear-gradient(150deg,
+      rgba(255, 255, 255, 0.6) 0%,
+      rgba(255, 255, 255, 0.36) 46%,
+      rgba(255, 255, 255, 0.52) 100%);
+  -webkit-backdrop-filter: blur(16px) saturate(1.18);
+  backdrop-filter: blur(16px) saturate(1.18);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.04);
+}
+
+/* the glow: rises out of the front edge of the tile, one square after the
+   next, then starts again */
+.board .sq::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(0deg,
+    rgba(196, 255, 158, 0.95) 0%,
+    rgba(255, 255, 255, 0.7) 34%,
+    rgba(196, 255, 158, 0.18) 62%,
+    rgba(255, 255, 255, 0) 82%);
+  animation: sqGlow 4.2s linear infinite;
+  animation-delay: calc(var(--i, 0) * 0.5s);
+}
+
+@keyframes sqGlow {
+  0%   { opacity: 0; transform: translateY(26%) scaleY(0.6); }
+  4%   { opacity: 1; }
+  13%  { opacity: 0.5; transform: translateY(0) scaleY(1); }
+  20%  { opacity: 0; transform: translateY(-10%) scaleY(1.1); }
+  100% { opacity: 0; transform: translateY(26%) scaleY(0.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board .sq::after { animation: none; }
+}
+
+/* the label and the piece sit above the face and the glow */
+.board .sq .name,
+.board .sq .art { transform: translateZ(1px); }
+
+
+/* pieces sit a touch further left on their tiles, and the house was reading
+   larger than its neighbours */
+.board .sq .art img {
+  transform: translateX(-30px) rotateZ(38deg) rotateX(-54deg);
+}
+
+.board .sq[data-class="HOUS"] .art img { width: 62%; }
+
+
+/* ---------- The rising light --------------------------------------------
+   One square at a time, slowly, with a pause between each and a longer one
+   before it starts again. The light travels up the tile from its front edge
+   and keeps going up the standing piece, so it reads as a single sweep
+   rather than two separate glows. */
+
+.board .sq::after {
+  background: linear-gradient(0deg,
+    rgba(196, 255, 158, 0) 0%,
+    rgba(196, 255, 158, 0.9) 26%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(196, 255, 158, 0.5) 74%,
+    rgba(196, 255, 158, 0) 100%);
+  animation: riseUp 17s linear infinite;
+  animation-delay: calc(var(--i, 0) * 2s);
+}
+
+.board .sq .art { position: absolute; }
+
+.board .sq .art::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 0;
+  height: 190%;
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: 50% 100%;
+  transform: translateX(-30px) rotateZ(38deg) rotateX(-54deg);
+  background: linear-gradient(0deg,
+    rgba(196, 255, 158, 0) 0%,
+    rgba(196, 255, 158, 0.55) 30%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(196, 255, 158, 0.3) 72%,
+    rgba(196, 255, 158, 0) 100%);
+  animation: risePiece 17s linear infinite;
+  animation-delay: calc(var(--i, 0) * 2s);
+}
+
+/* the tile: the band climbs from the front edge to the back and fades */
+@keyframes riseUp {
+  0%   { opacity: 0; transform: translateY(70%); }
+  1.5% { opacity: 0.9; }
+  6%   { opacity: 0.75; transform: translateY(-20%); }
+  8%   { opacity: 0; transform: translateY(-60%); }
+  100% { opacity: 0; transform: translateY(70%); }
+}
+
+/* the piece: the same band, a beat later, carrying on up the model */
+@keyframes risePiece {
+  0%    { opacity: 0; }
+  4%    { opacity: 0; }
+  5.5%  { opacity: 0.85; }
+  10.5% { opacity: 0; }
+  100%  { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board .sq::after,
+  .board .sq .art::after { animation: none; opacity: 0; }
+}
+
+
+/* The glass rule set position:relative across every white surface, which
+   pulled the open dropdown back into the layout and shoved the other filters
+   down the page. It floats again. */
+
+.dd { position: relative; }
+
+.dd-menu {
+  position: absolute !important;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+}
+
+
+/* The lede pills size off an 18px paragraph, so 0.86em lands at 15.5px. The
+   markets copy is a 15px paragraph, which made the same rule render a smaller
+   pill. Fixed size, so every inline pill on the site matches. */
+
+.inline-pill,
+.lede a,
+.section-head p a.inline-pill {
+  font-size: 15.5px !important;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 2px 11px;
+}
+
+
+/* ---------- The board's light ------------------------------------------
+   One square at a time: it rises off the board and a shine travels up the
+   piece at the same moment, then it settles. After the last one the board
+   sits still for three seconds before it starts again.
+
+   The shine moves as a background position rather than a transform, because
+   the piece already carries the counter rotation that keeps it standing and
+   animating that would fight it. */
+
+.board .sq {
+  animation: sqLift 20s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 2.4s);
+}
+
+@keyframes sqLift {
+  0%   { transform: translateZ(0); }
+  3%   { transform: translateZ(22px); }
+  8%   { transform: translateZ(22px); }
+  12%  { transform: translateZ(0); }
+  100% { transform: translateZ(0); }
+}
+
+/* no sweep across the tile itself, the light belongs to the piece */
+.board .sq::after { display: none; }
+
+.board .sq .art::after {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  opacity: 0;
+  transform: translateX(-30px) rotateZ(38deg) rotateX(-54deg);
+  background: linear-gradient(0deg,
+    rgba(196, 255, 158, 0) 0%,
+    rgba(196, 255, 158, 0.55) 34%,
+    rgba(255, 255, 255, 0.9) 46%,
+    rgba(196, 255, 158, 0.5) 58%,
+    rgba(196, 255, 158, 0) 92%);
+  background-size: 100% 260%;
+  background-repeat: no-repeat;
+  animation: shineUp 20s ease-out infinite;
+  animation-delay: calc(var(--i, 0) * 2.4s);
+}
+
+@keyframes shineUp {
+  0%   { opacity: 0; background-position: 50% 0%; }
+  2%   { opacity: 0.95; }
+  9%   { opacity: 0.6; }
+  12%  { opacity: 0; background-position: 50% 100%; }
+  100% { opacity: 0; background-position: 50% 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board .sq,
+  .board .sq .art::after { animation: none; }
+}
+
+
+/* ---------- Piece sizes and placement ----------------------------------- */
+
+.board .sq[data-class="SHTY"] .art img { width: 62%; }
+.board .sq[data-class="COUCH"] .art img { width: 60%; }
+
+/* these two were hanging over the front edge of their tiles */
+.board .sq[data-class="HOUS"] .art img,
+.board .sq[data-class="HIRS"] .art img {
+  transform: translateX(-12px) translateY(-14px) rotateZ(38deg) rotateX(-54deg);
+}
+
+/* and the board needs to stay clear of the copy under it */
+body.is-home .hero .lede { margin-top: 54px; }
+
+
+/* The shine is gone. On a standing plane it is a rectangle, so it washed over
+   the tile next door instead of lighting the model. The squares still rise one
+   at a time and settle. */
+
+.board .sq .art::after { display: none !important; animation: none !important; }
+
+
+/* house and high-rise sit exactly where the shanty sits: the shared placement,
+   not the pulled back one they had */
+.board .sq[data-class="HOUS"] .art img,
+.board .sq[data-class="HIRS"] .art img {
+  transform: translateX(-30px) rotateZ(38deg) rotateX(-54deg);
+}
+
+
+/* ---------- Hero: copy under the headline, board to its right -----------
+   The lede is narrow and sits directly under the headline on the left. The
+   board fills the right, and the buttons sit under its left edge. */
+
+body.is-home .hero-grid > div:first-child { max-width: 100%; }
+
+body.is-home .hero h1 { max-width: 640px; }
+
+body.is-home .hero .lede {
+  max-width: 440px;
+  margin-top: 18px !important;
+  margin-bottom: 0;
+}
+
+body.is-home .board-stage { margin-top: -150px; }
+
+body.is-home .hero-actions { margin-top: 10px !important; }
+
+
+/* ---------- Board: no stray hairline on the rise ------------------------
+   The face carried a 1px white border. A border is painted on the edge of the
+   box, so once a square lifts in Z that antialiased edge sweeps across the
+   tiles behind it and reads as a fine white line. The edge is an inset ring
+   now, painted inside the shape, and the face is pulled in half a pixel so it
+   never sits exactly on a neighbour's edge. */
+
+.board .sq::before {
+  inset: 0.5px;
+  border: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 2px rgba(11, 20, 16, 0.03);
+  backface-visibility: hidden;
+}
+
+.board .sq {
+  backface-visibility: hidden;
+  outline: 1px solid transparent;
+}
+
+
+/* These three stand further forward than the rest because their renders carry
+   less empty space under the model. Padding the base of the slot moves where
+   they stand back up the tile, rather than nudging them across the screen. */
+
+.board .sq[data-class="SHTY"] .art,
+.board .sq[data-class="HOUS"] .art,
+.board .sq[data-class="HIRS"] .art {
+  padding-bottom: 26px;
+}
+
+
+/* ---------- The Robinhood mark ------------------------------------------
+   A black disc with the feather in lime at its centre, so it never clashes
+   with the class colour it sits on. Set after the name like a verified tick. */
+
+.rh-badge {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-left: 6px;
+  border-radius: 50%;
+  background:
+    url("assets/brand/robinhood-lime.png") center / 62% auto no-repeat,
+    linear-gradient(180deg, #1A211E, #0A0F0D);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 1px 2px rgba(11, 20, 16, 0.4);
+  vertical-align: -2px;
+}
+
+.board .sq .name { gap: 0; }
+.board .sq .name .rh-badge { width: 14px; height: 14px; margin-left: 7px; }
+
+.tile .ticker .rh-badge { width: 16px; height: 16px; vertical-align: -3px; }
+
+
+/* ---------- Board: the lift no longer scrapes its neighbours ------------
+   At 22px a rising square overlapped the tiles beside it, and the bright ring
+   around its edge was what read as a white line across them. A shorter lift
+   keeps the square within its own footprint, and the ring is softer. */
+
+@keyframes sqLift {
+  0%   { transform: translateZ(0); }
+  3%   { transform: translateZ(9px); }
+  8%   { transform: translateZ(9px); }
+  12%  { transform: translateZ(0); }
+  100% { transform: translateZ(0); }
+}
+
+.board .sq::before {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.board .sq:hover { transform: translateZ(10px); }
+
+/* the high-rise still stood forward of the rest */
+.board .sq[data-class="HIRS"] .art { padding-bottom: 44px; }
+
+
+/* ---------- Board tiles: the same shine as the rest of the site ----------
+   The tiles carried only a soft top to bottom gradient, which read faint next
+   to the cards. They now take the single centre streak every other glass
+   surface uses, angled to run with the board rather than against it. */
+
+.board .sq::before {
+  background:
+    linear-gradient(118deg,
+      rgba(255, 255, 255, 0.26) 14%,
+      rgba(255, 255, 255, 0.95) 50%,
+      rgba(255, 255, 255, 0.26) 86%);
+}
+
+
+/* The path is resolved against the stylesheet, not the page, so it is
+   brand/... from here. Small, black, feather in lime, sitting in line at the
+   end of the name. */
+
+.rh-badge {
+  width: 13px;
+  height: 13px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background:
+    url("brand/robinhood-lime.png") center / 64% auto no-repeat,
+    #0B0F0D;
+  box-shadow: none;
+  vertical-align: -1px;
+}
+
+.board .sq .name .rh-badge { width: 12px; height: 12px; margin-left: 6px; vertical-align: -1px; }
+.tile .ticker .rh-badge { width: 14px; height: 14px; vertical-align: -2px; }
+
+
+/* The mark reads as a small stamp: rounded square, the same lime plate as the
+   logo stamp, with the feather in black at its centre. */
+
+.rh-badge {
+  width: 14px;
+  height: 14px;
+  margin-left: 7px;
+  border-radius: 3.5px;
+  background:
+    url("brand/robinhood.png") center / 66% auto no-repeat,
+    linear-gradient(180deg, #C4FF9E, #7FD84E);
+  box-shadow: inset 0 0 0 1px rgba(63, 132, 32, 0.55);
+  vertical-align: -2px;
+}
+
+.board .sq .name .rh-badge { width: 13px; height: 13px; margin-left: 6px; vertical-align: -1px; }
+.tile .ticker .rh-badge { width: 15px; height: 15px; vertical-align: -2px; }
+
+
+/* ---------- Hero: copy and buttons left, board right --------------------
+   Two columns rather than a stack, so the buttons sit directly under the
+   paragraph and the board holds the right of the hero on its own. */
+
+body.is-home .hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 24px;
+  align-items: center;
+}
+
+body.is-home .hero-grid > div:first-child { grid-column: 1; }
+body.is-home .board-stage { grid-column: 2; margin-top: 0; }
+
+body.is-home .hero h1 { max-width: none; }
+body.is-home .hero .lede { max-width: 460px; margin-top: 18px !important; }
+body.is-home .hero-actions { margin-top: 26px !important; }
+
+@media (max-width: 860px) {
+  body.is-home .hero-grid { grid-template-columns: 1fr; }
+  body.is-home .board-stage { grid-column: 1; }
+}
+
+
+/* the shanty tile was almost touching the stat bar */
+body.is-home .hero { padding: 44px 0 26px !important; }
+body.is-home .statrow { margin-top: 34px; }
+
+
+/* the stat bar clears the board again: the hero keeps its own bottom padding
+   and the bar sits below it rather than riding up into the shanty tile */
+body.is-home .hero { padding: 44px 0 56px !important; }
+body.is-home .statrow { margin-top: 56px; }
+
+
+/* The band was a grid with centred items, so the mark became its own row and
+   sat under the name. A flex row keeps them on one line, and the feather
+   fills more of its plate. */
+
+.board .sq .name {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.rh-badge { background-size: 82% auto; }
+
+.board .sq .name .rh-badge { width: 14px; height: 14px; margin-left: 0; vertical-align: 0; }
+
+
+/* `.section-head p a` outranks `.inline-pill` on specificity, so its green
+   link colour was winning and the pill text came out green. Matching the
+   specificity settles it: black text, same plate as the class page pills. */
+
+p a.inline-pill,
+.lede a.inline-pill,
+.sub a.inline-pill,
+.section-head p a.inline-pill {
+  display: inline-block;
+  color: #0B140A !important;
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  border: 1px solid #4E9A2A !important;
+  border-radius: 999px !important;
+  padding: 2px 11px !important;
+  margin: 0 1px !important;
+  font-size: 15.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+  text-decoration: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+p a.inline-pill:hover,
+.section-head p a.inline-pill:hover { filter: brightness(1.06); }
+
+
+/* Robinhood's own green behind the feather. This is the only place it is
+   used, every brand green elsewhere stays as it is. */
+
+.rh-badge {
+  background:
+    url("brand/robinhood.png") center / 82% auto no-repeat,
+    #CCFF00;
+  box-shadow: inset 0 0 0 1px rgba(122, 153, 0, 0.55);
+}
+
+
+/* Coin page: the mark leads the ticker and the pair sits a touch in from the
+   edge of the block. */
+
+.class-head .tierline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 4px;
+}
+
+.class-head .tierline .rh-badge {
+  width: 15px;
+  height: 15px;
+  margin-left: 0;
+  vertical-align: 0;
+  flex: none;
+}
+
+
+/* shanty forward a little, high-rise larger and further back */
+.board .sq[data-class="SHTY"] .art { padding-bottom: 12px; }
+.board .sq[data-class="HIRS"] .art { padding-bottom: 52px; }
+.board .sq[data-class="HIRS"] .art img { width: 84%; }
+
+
+/* The tilted board reaches well below its own grid cell, so the stat bar's
+   margin was being measured from the cell rather than from the shanty tile
+   that actually sits lowest. It clears it now. */
+
+body.is-home .statrow { margin-top: 112px !important; }
+
+
+/* ---------- Hero CA plate on hover -------------------------------------
+   Black, since the Launch button next to it takes the green. White text and
+   the feather knocked out to white with it. */
+
+.btn-ca:hover {
+  background: linear-gradient(180deg, #2C3331, #0A0F0D) !important;
+  border-color: #0A0D0C !important;
+  color: #FFFFFF !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 16px 22px -12px rgba(11, 20, 16, 0.5) !important;
+}
+
+.btn-ca:hover .rh { filter: brightness(0) invert(1); }
+.btn-ca:hover svg { color: #FFFFFF; stroke: #FFFFFF; }
+
+
+/* the high-rise stands further back on its tile again */
+.board .sq[data-class="HIRS"] .art { padding-bottom: 66px; }
+
+
+/* ---------- Docs: nothing shows through the nav -------------------------
+   The docs header kept the translucent plate but had its blur switched off,
+   so the page scrolled visibly behind it. It is opaque now. */
+
+body.has-toc .site-header {
+  background: linear-gradient(180deg, #E9F5EE, #DCEBE3) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  z-index: 60;
+}
+
+
+/* ---------- Hero close ---------------------------------------------------
+   A line and a button, centred, closing the hero under the stat bar. */
+
+.hero-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 54px;
+  text-align: center;
+}
+
+.hero-cta p {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* the launch lede reads as one line wherever there is room for it */
+@media (min-width: 1060px) {
+  body:not(.is-home) .lede { white-space: nowrap; max-width: none; }
+}
+
+
+/* ---------- Trading fee picker -----------------------------------------
+   The unpicked options were bare outlines. Same glass and streak as the class
+   pickers; the chosen one keeps its green plate. */
+
+.fee-opt {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(118deg,
+      rgba(255, 255, 255, 0.3) 14%,
+      rgba(255, 255, 255, 0.92) 50%,
+      rgba(255, 255, 255, 0.3) 86%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.18);
+  backdrop-filter: blur(16px) saturate(1.18);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.045),
+    0 14px 20px -11px rgba(86, 168, 46, 0.18),
+    0 4px 8px -4px rgba(86, 168, 46, 0.12) !important;
+}
+
+.fee-opt[aria-pressed="true"],
+.fee-opt.is-active,
+.fee-opt.selected {
+  background: linear-gradient(180deg, #C4FF9E, #7FD84E) !important;
+  border-color: #4E9A2A !important;
+  color: #0B140A !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 14px 20px -11px rgba(86, 168, 46, 0.4) !important;
+}
+
+
+/* black, not a grey gradient */
+.btn-ca:hover {
+  background: #0B0B0B !important;
+  border-color: #000000 !important;
+}
+
+
+/* The one line lede belongs to the launch page only. Applied to every page it
+   pushed the long docs lede past the viewport and gave the docs page a
+   horizontal scrollbar. */
+
+body:not(.is-home) .lede { white-space: normal; }
+
+@media (min-width: 1060px) {
+  body.is-launch .lede { white-space: nowrap; max-width: none; }
+}
+
+/* nothing on the docs page may scroll the page sideways */
+body.has-toc { overflow-x: hidden; }
+body.has-toc main > section > .wrap > * { max-width: 100%; }
+
+
+/* ---------- Docs contents rail: room for the longest entry -------------- */
+
+body.has-toc main {
+  grid-template-columns: 288px minmax(0, 1fr);
+}
+
+body.has-toc main > .toc { width: 100%; }
+
+
+/* the high-rise was standing on the back right corner of its tile, over the
+   container above it. Left and forward onto its own square. */
+.board .sq[data-class="HIRS"] .art { padding-bottom: 40px; }
+.board .sq[data-class="HIRS"] .art img {
+  width: 80%;
+  transform: translateX(-56px) rotateZ(38deg) rotateX(-54deg);
+}
+
+
+/* ---------- Closing call to action --------------------------------------
+   The last thing on the page before the footer: one line at headline size and
+   the button under it, both centred. */
+
+.cta-band { border-bottom: none !important; padding: 30px 0 84px !important; }
+
+.hero-cta { gap: 24px; margin-top: 0; }
+
+.hero-cta p {
+  font-family: var(--font-ui);
+  font-size: clamp(28px, 3.4vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  text-wrap: balance;
+  max-width: 20ch;
+}
+
+.hero-cta .btn { font-size: 15px; padding: 13px 26px; }
+
+
+/* back right, I overshot: it was sitting over the house tile */
+.board .sq[data-class="HIRS"] .art img {
+  transform: translateX(-22px) rotateZ(38deg) rotateX(-54deg);
+}
+
+
+/* high-rise further back up its plane */
+.board .sq[data-class="HIRS"] .art { padding-bottom: 66px; }
+.board .sq[data-class="HIRS"] .art img {
+  transform: translateX(-8px) rotateZ(38deg) rotateX(-54deg);
+}
+
+
+/* tighter around the closing call to action */
+.cta-band { padding: 6px 0 52px !important; }
+.hero-cta { gap: 18px; }
+
+
+/* ---------- Board pieces: an explicit anchor ----------------------------
+   Placement was done with grid alignment and padding, which silently stops
+   working the moment a render is taller than its slot: the browser clamps an
+   overflowing item to the start edge, so the high-rise ignored every padding
+   change and stayed pinned forward.
+
+   Each piece is now positioned outright. --base is how far back up the tile
+   it stands, --dx how far across, and neither can be clamped away. */
+
+.board .sq .art {
+  position: absolute;
+  inset: 0 0 30px 0;
+  display: block;
+  padding: 0 !important;
+}
+
+.board .sq .art img {
+  position: absolute;
+  left: 50%;
+  bottom: var(--base, 0px);
+  width: var(--pw, 74%);
+  height: auto;
+  transform-origin: 50% 100%;
+  transform: translateX(calc(-50% + var(--dx, -30px))) rotateZ(38deg) rotateX(-54deg);
+}
+
+.board .sq[data-class="COUCH"] .art img { --pw: 60%; }
+.board .sq[data-class="SHED"]  .art img { --pw: 74%; }
+.board .sq[data-class="RV"]    .art img { --pw: 74%; }
+.board .sq[data-class="CTNR"]  .art img { --pw: 74%; }
+.board .sq[data-class="SHTY"]  .art img { --pw: 62%; --base: 12px; }
+.board .sq[data-class="HOUS"]  .art img { --pw: 62%; --base: 26px; }
+.board .sq[data-class="HIRS"]  .art img { --pw: 68%; --base: 30px; --dx: -26px; }
+
+.board .sq[data-class="HIRS"] .art img { --pw: 66%; --base: 6px; --dx: -42px; }
+
+.board .sq[data-class="HIRS"] .art img { --pw: 64%; --base: 0px; --dx: -58px; }
+
+
+/* Back to what was approved. The house and the high-rise were both taller
+   than their slots, so the browser had been clamping them to the front edge
+   and their padding never applied; honouring it moved them. The house goes
+   back exactly where it was, and the high-rise sits on the same centre line
+   as every other piece, just a little back and a little smaller so it does
+   not tower over the tile behind it. */
+
+.board .sq[data-class="HOUS"] .art img { --pw: 62%; --base: 0px; --dx: -30px; }
+.board .sq[data-class="HIRS"] .art img { --pw: 62%; --base: 14px; --dx: -30px; }
+
+
+/* ---------- Market cards: the class reads at a glance ------------------- */
+
+.market-card.has-class { padding-top: 30px; }
+
+/* same glossy gradient as the class tiles' band: a light lip on top, the
+   class colour running down into a darker stop */
+.market-card.has-class::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 14px;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.12)),
+    linear-gradient(180deg, var(--c), var(--c2, var(--c)));
+  border-bottom: 1px solid rgba(16, 20, 19, 0.26);
+}
+
+.market-badge[data-ticker] {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.1)),
+    linear-gradient(180deg, var(--c, #4C5A56), var(--c2, var(--c, #4C5A56))) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 5px -2px rgba(11, 20, 16, 0.3) !important;
+  color: var(--ci, #fff) !important;
+  border: 1px solid rgba(11, 20, 16, 0.22) !important;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+
+/* ---------- Board pieces stand on their own feet ------------------------
+   Every render has a different amount of empty space under it, so a single
+   anchor put some pieces on their square and pushed others (the house and
+   the high-rise) forward off it onto the band. Each piece now declares
+   --foot: the share of its image that sits below the point where it touches
+   the ground, measured from the file. The image is shifted by exactly that,
+   so every piece touches the board at the same spot, --stand above the
+   anchor. A new piece needs its --foot measured, nothing tuned by eye. */
+
+/* [data-class] gives this the same weight as the old per-class rules further
+   up. Several of those set their own transform and width on the house and
+   the high-rise (one drops the -50% centring outright, which pinned the
+   high-rise half off its square), and they silently beat the shared anchor.
+   This comes last at equal weight, so it now wins for every piece. */
+.board .sq[data-class] .art img {
+  position: absolute;
+  max-width: none;   /* the card rule caps art at 100%, which clamped the high-rise */
+  max-height: none;
+  left: 50%;
+  bottom: var(--base, 0px);
+  width: var(--pw, 74%);
+  height: auto;
+  transform-origin: 50% 100%;
+  transform:
+    translateX(calc(-50% + var(--dx, -30px)))
+    rotateZ(38deg) rotateX(-54deg)
+    translateY(calc(var(--foot, 0.16) * 100% - var(--stand, 14px)));
+}
+
+.board .sq[data-class="COUCH"] .art img { --pw: 60%;   --foot: 0.184; }
+.board .sq[data-class="SHED"]  .art img { --pw: 74%;   --foot: 0.166; }
+.board .sq[data-class="RV"]    .art img { --pw: 74%;   --foot: 0.146; }
+.board .sq[data-class="CTNR"]  .art img { --pw: 74%;   --foot: 0.121; }
+.board .sq[data-class="SHTY"]  .art img { --pw: 62%;   --foot: 0.163; }
+/* board-art cuts sit on a canvas 1.4x wider, so 62% becomes 86.8% */
+.board .sq[data-class="HOUS"]  .art img { --pw: 86.8%; --foot: 0.173; --base: 0px; --dx: -30px; }
+.board .sq[data-class="HIRS"]  .art img { --pw: 118%;  --foot: 0.171; --base: 0px; --dx: -30px; }
+
+
+/* ---------- Outline buttons are glass, like every other container ------- */
+
+.btn-outline {
+  background:
+    linear-gradient(100deg,
+      rgba(255, 255, 255, 0.82) 12%,
+      rgba(255, 255, 255, 0.38) 46%,
+      rgba(255, 255, 255, 0.74) 84%);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.045),
+    0 18px 24px -12px rgba(86, 168, 46, 0.2),
+    0 5px 10px -5px rgba(86, 168, 46, 0.14);
+}
+
+
+/* ---------- Glass for the last white pieces: the ETH unit on the launch
+   form, and the browse filters both closed and open --------------------- */
+
+.buy-row .currency-select,
+.dd-btn {
+  background:
+    linear-gradient(162deg,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0.26) 44%,
+      rgba(255, 255, 255, 0.42) 100%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(11, 20, 16, 0.045),
+    0 18px 24px -12px rgba(86, 168, 46, 0.2),
+    0 5px 10px -5px rgba(86, 168, 46, 0.14) !important;
+}
+
+/* the open list sits over content, so a touch more body and blur */
+.dd-menu {
+  background:
+    linear-gradient(162deg,
+      rgba(255, 255, 255, 0.64) 0%,
+      rgba(255, 255, 255, 0.42) 100%) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(1.3);
+  backdrop-filter: blur(26px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+}

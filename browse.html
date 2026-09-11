@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CASTLE | Home</title>
+<title>CASTLE | Browse markets</title>
 <meta name="description" content="Launch a coin tethered to any real estate class, from a storage shed to a villa, on Robinhood Chain Testnet.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23C4FF9E'/%3E%3Cstop offset='1' stop-color='%237FD84E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cpath fill='%230B140A' d='M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
 </head>
-<body class="is-home">
+<body class="is-browse">
 
 <header class="site-header">
   <div class="wrap">
@@ -22,8 +22,8 @@
       <span><i></i><b>CASTLE</b></span>
     </a>
     <nav class="primary">
-      <a href="index.html" aria-current="page">Home</a>
-      <a href="browse.html">Browse markets</a>
+      <a href="index.html">Home</a>
+      <a href="browse.html" aria-current="page">Browse markets</a>
       <a href="classes.html">Property classes</a>
       <a href="launch.html">Launchpad</a>
       <a href="docs.html" target="_blank" rel="noopener">Docs<svg class="ext" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5H5.5A1.5 1.5 0 0 0 4 6.5v8A1.5 1.5 0 0 0 5.5 16h8a1.5 1.5 0 0 0 1.5-1.5V12"/><path d="M11.5 4H16v4.5M16 4l-6.5 6.5"/></svg></a>
@@ -37,112 +37,31 @@
 </header>
 
 <main>
-
-  <section class="hero">
-    <div class="wrap hero-grid">
-      <div>
-        
-        <h1 style="margin-top:16px;">Tether tokens to a piece of property.</h1>
-        <p class="lede">
-          Pick a property-class: a tin shed, a friend's couch, an RV, a villa.
-          The token you launch trades against that class's index price from the first buy.
-        </p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="launch.html">Launch a coin</a>
-          <button type="button" class="btn btn-outline btn-ca" id="hero-ca" disabled>
-            <img class="rh" src="assets/brand/robinhood.png" alt="">
-            $CASTLE CA (soon)
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="7" width="9" height="9" rx="2"/><path d="M13 7V5.5A1.5 1.5 0 0 0 11.5 4H5.5A1.5 1.5 0 0 0 4 5.5v6A1.5 1.5 0 0 0 5.5 13H7"/></svg>
-          </button>
-        </div>
-      </div>
-
-      <div class="board-stage"><div class="board" id="hero-board"></div></div>
-
-    </div>
-
-    <div class="wrap">
-      <div class="statrow">
-        <div class="stat"><b>1B</b><span>supply per launch</span></div>
-        <div class="stat"><b>8.8 ETH</b><span>to graduate</span></div>
-        <div class="stat"><b>20</b><span>property classes</span></div>
-      </div>
-
-    </div>
-  </section>
-
-  <section class="section">
+<section class="section" style="padding-top:48px;">
     <div class="wrap">
       <div class="section-head">
         <div>
-          <h2>Live markets</h2>
-          <p>These are only the most recent launches featured. Browse more markets by navigating to the <a class="inline-pill" href="browse.html">browse markets</a> page.</p>
+          <h1 style="margin:0 0 6px;">Browse markets</h1>
+          <p>Every launch, read straight from the chain, no indexer, no database. Market cap, migration progress, and volume are all live view calls and log scans, not a database.</p>
         </div>
+        <a class="btn btn-primary" href="launch.html">Launch a coin</a>
       </div>
+
       <div class="markets-toolbar" id="markets-toolbar">
         <input type="text" class="market-search" id="market-search" placeholder="Search name, ticker, class…">
-        <div class="market-filters" id="market-filters">
-          <button type="button" class="market-filter" data-filter="all" aria-pressed="true">All <span id="count-all"></span></button>
-          <button type="button" class="market-filter" data-filter="new" aria-pressed="false">New pairs <span id="count-new"></span></button>
-          <button type="button" class="market-filter" data-filter="migrated" aria-pressed="false">Migrated <span id="count-migrated"></span></button>
+        <div class="browse-filters" id="browse-filters">
+          <div class="dd" data-dd="class"><button type="button" class="dd-btn">All property classes<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg></button><div class="dd-menu"></div></div>
+          <div class="dd" data-dd="status"><button type="button" class="dd-btn">All markets<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg></button><div class="dd-menu"></div></div>
+          <div class="dd" data-dd="sort"><button type="button" class="dd-btn">Newest first<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg></button><div class="dd-menu"></div></div>
+          <span class="count" id="browse-count"></span>
         </div>
-        <a class="btn btn-outline" href="browse.html">Browse markets</a>
       </div>
 
       <div id="markets-status" class="sub">Checking for a live deployment…</div>
       <div class="market-grid" id="markets-grid"></div>
     </div>
   </section>
-
-  <section class="section">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2>Property classes</h2>
-          <p>Every launch pairs with one of these. Novelty classes exist alongside real housing stock on purpose. The mechanics don't care which one you pick.</p>
-        </div>
-        <a class="btn btn-outline" href="classes.html">View all classes</a>
-      </div>
-      <div class="tile-grid" id="home-tile-preview"></div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2>How a launch works</h2>
-          <p>Full mechanics, fee math, and the migration step are on the docs page.</p>
-        </div>
-        <a class="btn btn-outline" href="docs.html">Read full docs</a>
-      </div>
-      <div class="spec">
-        <div class="spec-row"><span class="k">Every launch mints</span><span class="v">1,000,000,000 tokens</span></div>
-        <div class="spec-row"><span class="k">Sold on the curve</span><span class="v">800,000,000 (80%)</span></div>
-        <div class="spec-row"><span class="k">Reserved for the pool</span><span class="v">200,000,000 (20%)</span></div>
-        <div class="spec-row"><span class="k">Curve opens at</span><span class="v brass">~2.8 ETH implied cap</span></div>
-        <div class="spec-row"><span class="k">Curve completes at</span><span class="v brass">~8.8 ETH raised</span></div>
-        <div class="spec-row"><span class="k">Paid in</span><span class="v">ETH, no minting, no approval</span></div>
-        <div class="spec-row"><span class="k">Creator trading fee</span><span class="v">1% to 3%, set at launch</span></div>
-        <div class="spec-row"><span class="k">Fee split</span><span class="v">70% creator / 30% protocol</span></div>
-        <div class="spec-row"><span class="k">Holder rewards</span><span class="v">none, nothing to claim just for holding</span></div>
-        <div class="spec-row"><span class="k">Class picked?</span><span class="v">migrates into 2 pools (TOKEN/ETH + TOKEN/class) instead of 1</span></div>
-        <div class="spec-row"><span class="k">On migration</span><span class="v">moves to Uniswap v4 pool(s), permanently</span></div>
-      </div>
-    </div>
-  </section>
-
 </main>
-
-
-  <section class="section cta-band">
-    <div class="wrap">
-      <div class="hero-cta">
-        <p>Pair markets with property-classes today.</p>
-        <a class="btn btn-primary" href="launch.html">Launch a coin</a>
-      </div>
-    </div>
-  </section>
 
 <footer class="site-footer">
   <div class="wrap">

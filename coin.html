@@ -3,31 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coin · Parcel</title>
-<meta name="description" content="A property-class coin on Parcel — fixed rate, fully collateralized, mint/redeem against ETH.">
+<title>CASTLE | Property Classes</title>
+<meta name="description" content="A property-class coin on CASTLE, fixed rate, fully collateralized, mint/redeem against ETH.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23C4FF9E'/%3E%3Cstop offset='1' stop-color='%237FD84E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cpath fill='%230B140A' d='M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/brand.css?v=L205431">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="index.html">
-      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="4" y="4" width="22" height="22"/>
-        <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
-        <circle cx="19" cy="19" r="3.4"/>
+      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+        <path fill="currentColor" d="M4 24V12H9V8H13V12H17V8H21V12H26V24Z"/>
       </svg>
-      <span>Parcel<span class="sub">on Robinhood Chain Testnet</span></span>
+      <span><i></i><b>CASTLE</b></span>
     </a>
     <nav class="primary">
-      <a href="index.html">Markets</a>
+      <a href="index.html">Home</a>
+      <a href="browse.html">Browse markets</a>
       <a href="classes.html" aria-current="page">Property classes</a>
-      <a href="launch.html">Launch</a>
-      <a href="docs.html">How it works</a>
+      <a href="launch.html">Launchpad</a>
+      <a href="docs.html" target="_blank" rel="noopener">Docs<svg class="ext" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5H5.5A1.5 1.5 0 0 0 4 6.5v8A1.5 1.5 0 0 0 5.5 16h8a1.5 1.5 0 0 0 1.5-1.5V12"/><path d="M11.5 4H16v4.5M16 4l-6.5 6.5"/></svg></a>
     </nav>
     <div style="display:flex; align-items:center; gap:12px;">
+      <a class="btn-x" href="https://x.com/castle_markets" target="_blank" rel="noopener" aria-label="CASTLE on X" title="CASTLE on X"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
       <span class="chain-tag">Robinhood Chain Testnet</span>
       <button class="btn-connect" data-connect>Connect wallet</button>
     </div>
@@ -41,32 +43,32 @@
     </div>
 
     <div class="wrap" id="coin-wrap" style="display:none;">
-      <div style="display:flex; align-items:center; gap:14px;">
-        <div class="market-icon" id="co-icon" style="width:52px; height:52px; overflow:hidden; flex:none;"></div>
+      <div class="class-head" id="co-head">
+        <div class="art" id="co-icon"></div>
         <div>
-          <span class="eyebrow-tag" id="co-tag">Loading…</span>
-          <h1 style="margin-top:8px;" id="co-name">—</h1>
+          <h1 id="co-name">-</h1>
+          <div class="tierline" id="co-tag">Loading…</div>
         </div>
       </div>
-      <p class="lede" id="co-sub">—</p>
+      <p class="lede" id="co-sub">-</p>
       <div style="display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:13px; color:var(--paper-dim); margin-top:-8px; margin-bottom:24px;">
         <span>CA:</span>
-        <span id="co-ca-top" style="cursor:pointer; color:var(--brass-bright);" title="Click to copy">—</span>
+        <span id="co-ca-top" style="cursor:pointer; color:var(--brass-bright);" title="Click to copy">-</span>
       </div>
 
       <div class="launch-grid" style="margin-top:36px;">
         <div>
           <div class="spec" style="margin-bottom:24px;">
-            <div class="spec-row"><span class="k">Fixed rate</span><span class="v brass" id="co-rate">—</span></div>
-            <div class="spec-row"><span class="k">≈ USD</span><span class="v" id="co-rate-usd">—</span></div>
-            <div class="spec-row"><span class="k">Total supply</span><span class="v" id="co-supply">—</span></div>
-            <div class="spec-row"><span class="k">ETH reserves locked</span><span class="v" id="co-reserves">—</span></div>
-            <div class="spec-row"><span class="k">Reserves value</span><span class="v" id="co-reserves-usd">—</span></div>
+            <div class="spec-row"><span class="k">Fixed rate</span><span class="v brass" id="co-rate">-</span></div>
+            <div class="spec-row"><span class="k">≈ USD</span><span class="v" id="co-rate-usd">-</span></div>
+            <div class="spec-row"><span class="k">Total supply</span><span class="v" id="co-supply">-</span></div>
+            <div class="spec-row"><span class="k">ETH reserves locked</span><span class="v" id="co-reserves">-</span></div>
+            <div class="spec-row"><span class="k">Reserves value</span><span class="v" id="co-reserves-usd">-</span></div>
           </div>
 
           <h3>Supply</h3>
           <p class="hint" style="margin-bottom:12px;">
-            This coin's rate is fixed — it never moves, so there's no price to chart. What can move is how much of it exists:
+            This coin's rate is fixed. It never moves, so there's no price to chart. What can move is how much of it exists:
             this plots total supply after every mint and redeem, from this coin's own on-chain events.
           </p>
           <div id="co-chart" style="margin-bottom:28px; min-height:60px;" class="sub">Loading supply history…</div>
@@ -87,7 +89,7 @@
           <div class="field">
             <label id="co-amount-label" for="co-amount">Pay with ETH</label>
             <input type="text" id="co-amount" placeholder="0.00" inputmode="decimal">
-            <p class="hint" id="co-preview">—</p>
+            <p class="hint" id="co-preview">-</p>
           </div>
 
           <div class="disclosure" id="co-disclosure">Checking for a live deployment…</div>
@@ -102,14 +104,18 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — Robinhood Chain Testnet.</span>
-    <span><a href="docs.html">How it works</a> · <a href="classes.html">Property classes</a></span>
+    <span class="foot-copy">&copy; 2026 CASTLE. All rights reserved.</span>
+    <div class="foot-links">
+      <a class="foot-row" href="https://explorer.testnet.chain.robinhood.com/address/0x31Ed87F608D0833Be870d1BAE60E90b88818B9fF" target="_blank" rel="noopener">Dev wallet address <b>0x31Ed…18B9fF</b></a>
+      <span class="foot-row is-pending">$CASTLE contract address <b>soon</b></span>
+    </div>
   </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
+<script src="assets/brand.js?v=L205431"></script>
 <script>
   const requestedTicker = new URLSearchParams(location.search).get("coin");
   const GENERIC_COIN_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.2c0-1.2 1.1-2 2.5-2s2.5.8 2.5 2c0 2.6-5 1.4-5 4 0 1.2 1.1 2 2.5 2s2.5-.8 2.5-2"/></svg>`;
@@ -149,12 +155,12 @@
       disclosureEl.innerHTML = `<strong>Preview mode.</strong> No live deployment found.`;
       return;
     }
-    disclosureEl.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong> Buying mints by sending ETH; selling redeems back to ETH — both at this coin's fixed rate, no slippage on the rate itself.`;
+    disclosureEl.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong> Buying mints by sending ETH; selling redeems back to ETH, both at this coin's fixed rate, no slippage on the rate itself.`;
 
     const ticker = requestedTicker.toUpperCase();
     coinAddress = ticker === "USDG" ? deployment.usdg : (deployment.classCoins || {})[ticker];
     classEntry = ticker === "USDG"
-      ? { ticker: "USDG", displayName: "USDG", label: "Parcel USDG (testnet)", unit: "1 USDG = $1", tier: "estate", glyph: null }
+      ? { ticker: "USDG", displayName: "USDG", label: "$CASTLE", unit: "1 USDG = $1", tier: "estate", glyph: null }
       : PROPERTY_CLASSES.find((c) => c.ticker === ticker);
 
     if (!coinAddress || !classEntry) {
@@ -165,14 +171,14 @@
     document.getElementById("co-icon").innerHTML = classEntry.glyph ? parcelGlyph(classEntry.glyph) : GENERIC_COIN_GLYPH;
     document.getElementById("co-tag").textContent = classEntry.ticker;
     document.getElementById("co-name").textContent = classEntry.displayName;
-    document.getElementById("co-sub").textContent = classEntry.label + " — " + classEntry.unit + ". Fully collateralized: minting only ever issues coin backed by ETH just deposited.";
+    document.getElementById("co-sub").textContent = classEntry.label + " · " + classEntry.unit + ". Fully collateralized: minting only ever issues coin backed by ETH just deposited.";
     document.getElementById("co-amount-label").textContent = "Pay with ETH";
 
     try {
       state = await Parcel.fetchPropertyCoinFullState(coinAddress);
     } catch (err) {
       console.error(err);
-      setStatus("Couldn't load this coin — check the deployment.", true);
+      setStatus("Couldn't load this coin. Check the deployment.", true);
       return;
     }
     if (!state) return;
@@ -236,7 +242,7 @@
     });
 
     if (points.length < 2) {
-      chartEl.innerHTML = buildEmptyChartSvg("One event so far — need at least two to plot a line");
+      chartEl.innerHTML = buildEmptyChartSvg("One event so far, need at least two to plot a line");
       return;
     }
     chartEl.innerHTML = buildSupplyChartSvg(points);
@@ -282,7 +288,7 @@
   function updatePreview() {
     const amt = parseFloat(amountEl.value);
     const previewEl = document.getElementById("co-preview");
-    if (!state || !amt || amt <= 0) { previewEl.textContent = "—"; return; }
+    if (!state || !amt || amt <= 0) { previewEl.textContent = "-"; return; }
     const rate = Number(ethers.formatEther(state.weiPerUnit));
     if (mode === "buy") {
       previewEl.textContent = "≈ " + (amt / rate).toLocaleString(undefined, { maximumFractionDigits: 6 }) + " " + classEntry.ticker;

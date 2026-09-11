@@ -3,33 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How it works · Parcel</title>
-<meta name="description" content="How launches, property-class coins, migration, and fees work on Parcel.">
+<title>CASTLE | Documents</title>
+<meta name="description" content="How launches, property-class coins, migration, and fees work on CASTLE.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23C4FF9E'/%3E%3Cstop offset='1' stop-color='%237FD84E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cpath fill='%230B140A' d='M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/brand.css?v=L205431">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="index.html">
-      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="4" y="4" width="22" height="22"/>
-        <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
-        <circle cx="19" cy="19" r="3.4"/>
+      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+        <path fill="currentColor" d="M4 24V12H9V8H13V12H17V8H21V12H26V24Z"/>
       </svg>
-      <span>Parcel<span class="sub">on Robinhood Chain Testnet</span></span>
+      <span><i></i><b>CASTLE</b></span>
     </a>
-    <nav class="primary">
-      <a href="index.html">Markets</a>
-      <a href="classes.html">Property classes</a>
-      <a href="launch.html">Launch</a>
-      <a href="docs.html" aria-current="page">How it works</a>
-    </nav>
     <div style="display:flex; align-items:center; gap:12px;">
+      <a class="btn-x" href="https://x.com/castle_markets" target="_blank" rel="noopener" aria-label="CASTLE on X" title="CASTLE on X"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
       <span class="chain-tag">Robinhood Chain Testnet</span>
-      <button class="btn-connect" data-connect>Connect wallet</button>
+      <a class="btn-connect" href="index.html">Back to home</a>
     </div>
   </div>
 </header>
@@ -37,11 +32,10 @@
 <main>
   <section class="section" style="padding-top:48px;">
     <div class="wrap">
-      <span class="eyebrow-tag">Docs</span>
-      <h1 style="margin-top:16px;">How it works</h1>
+      <h1 style="margin-top:16px;" class="doc-title"><svg class="doc-stamp" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="ds" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C4FF9E"/><stop offset="1" stop-color="#7FD84E"/></linearGradient></defs><rect width="32" height="32" rx="6" fill="url(#ds)"/><path fill="#0B140A" d="M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z"/></svg>Documents</h1>
       <p class="lede">
-        Parcel is a launchpad on Robinhood Chain. Buying and selling on a curve always happens
-        in plain ETH — connect a wallet, send ETH, get tokens, nothing to approve or mint first.
+        CASTLE is a launchpad on Robinhood Chain Testnet. Buying and selling on a curve always happens
+        in plain ETH, connect a wallet, send ETH, get tokens, nothing to approve or mint first.
         Optionally tethering a launch to a property class doesn't change that; it only changes
         what migration seeds once the curve sells out.
       </p>
@@ -51,7 +45,7 @@
   <section class="section" id="deployment">
     <div class="wrap">
       <h2>Testnet deployment</h2>
-      <p>Live addresses for the current deployment on Robinhood Chain Testnet (chain ID 46630), read straight from <code>deployments/testnet.json</code> — this updates automatically the next time someone redeploys.</p>
+      <p>Live addresses for the current deployment on Robinhood Chain Testnet (chain ID 46630), read straight from <code>deployments/testnet.json</code>. This updates automatically the next time someone redeploys.</p>
       <div class="spec" id="deployment-panel" style="max-width:640px;">
         <div class="spec-row"><span class="k">Status</span><span class="v" id="dep-status">Checking…</span></div>
       </div>
@@ -62,11 +56,11 @@
     <div class="wrap">
       <h2>Property-class coins</h2>
       <p>
-        Each of the 20 classes on <a href="classes.html" style="color:var(--brass-bright);">the class list</a> —
-        plus USDG — is a real, deployed <code>PropertyClassCoin</code>, not just a label. Every one
+        Each of the 20 classes on <a href="classes.html" style="color:var(--brass-bright);">the class list</a>,
+        plus USDG, is a real, deployed <code>PropertyClassCoin</code>, not just a label. Every one
         works the same way: <code>mint()</code> takes ETH and issues coin at a <strong>fixed,
         immutable rate</strong> set once at deployment; <code>redeem()</code> burns coin and gives
-        back exactly the ETH that backs it. There's no oracle and nothing updates the rate — it's
+        back exactly the ETH that backs it. There's no oracle and nothing updates the rate. It's
         fully collateralized:
         minting only ever issues coin backed by ETH just deposited, so the peg can't run short.
         You can buy and sell any of these directly on the
@@ -74,8 +68,8 @@
         launching anything.
       </p>
       <p>
-        The starting USD reference price for each class was researched, not guessed — averaged
-        across 2–4 independent sources for the 10 classes with a real market (RV, tiny homes,
+        The starting USD reference price for each class was researched, not guessed, averaged
+        across 2 to 4 independent sources for the 10 classes with a real market (RV, tiny homes,
         manufactured homes, container homes, cabins, condos, houses, farmland, luxury homes,
         commercial retail). Duplex, townhouse, and high-rise prices are derived from the house/condo
         figures with a disclosed multiplier rather than independently sourced, and farmland applies
@@ -98,7 +92,7 @@
             <h3>Mint and open</h3>
             <p>A launch mints 1,000,000,000 tokens. 800 million sell on a virtual-liquidity
               curve priced directly in ETH, using fixed virtual reserves (3 ETH / 1,073,000,000
-              tokens) set once in the contract — not derived from any price feed, and identical
+              tokens) set once in the contract, not derived from any price feed, and identical
               whether or not a property class is picked. That opens the curve around a 2.8 ETH
               implied cap. 200 million tokens are reserved for migration.</p>
           </div>
@@ -108,7 +102,7 @@
           <div>
             <h3>Creator sets the fee, picks a class (or not), and buys first</h3>
             <p>The creator picks a trading fee between 1% and 3%, optionally picks a property
-              class to tether the launch to, and sends their first buy — any amount of ETH — in
+              class to tether the launch to, and sends their first buy, any amount of ETH, in
               the same transaction that creates the market. No approval step either way: the ETH
               goes straight into the constructor call.</p>
           </div>
@@ -117,7 +111,7 @@
           <div class="num"></div>
           <div>
             <h3>Trade on the curve</h3>
-            <p>Anyone can buy or sell against the curve while it's open, always in ETH — a
+            <p>Anyone can buy or sell against the curve while it's open, always in ETH, a
               picked class never changes this part. If a buy would sell more tokens than the
               curve has left, it's automatically capped at the remaining supply and the unused
               ETH is refunded in the same transaction, rather than reverting.</p>
@@ -126,10 +120,10 @@
         <div class="step">
           <div class="num"></div>
           <div>
-            <h3>Migrate — into one pool, or two</h3>
+            <h3>Migrate into one pool, or two</h3>
             <p>When the curve sells out: with no class picked, the full 200 million reserved
               tokens and all raised ETH move into a single TOKEN/ETH pool. With a class picked,
-              it splits down the middle — half stays plain ETH for a TOKEN/ETH pool, and the
+              it splits down the middle: half stays plain ETH for a TOKEN/ETH pool, and the
               other half gets minted into the class coin first (at its fixed rate, using real
               ETH) before seeding a genuinely class-coin-backed TOKEN/&lt;class&gt; pool. Both
               pools carry the fee the creator chose, and neither is ever withdrawable.</p>
@@ -144,7 +138,7 @@
       <h2>Fees</h2>
       <p>
         Every fee is split the same way on the curve and in the pool(s) after migration, always
-        in ETH. There's no holder-reward bucket — nothing accrues to a wallet just for holding a
+        in ETH. There's no holder-reward bucket, nothing accrues to a wallet just for holding a
         token, and there's nothing to claim on that basis:
       </p>
       <table class="fee-table">
@@ -153,7 +147,7 @@
         </thead>
         <tbody>
           <tr><td>Creator</td><td>70%</td><td>ETH</td><td>Claimed from the launch's curve contract, any time.</td></tr>
-          <tr><td>Parcel (protocol)</td><td>30%</td><td>ETH</td><td>Funds the exchange.</td></tr>
+          <tr><td>CASTLE (protocol)</td><td>30%</td><td>ETH</td><td>Funds the exchange.</td></tr>
         </tbody>
       </table>
     </div>
@@ -165,7 +159,7 @@
       <p>
         A launch stores its image, name, and links in content-addressed storage. The
         permanent metadata URI is written on chain at creation and never changes, so a
-        market's name, image, and links stay exactly what its creator published —
+        market's name, image, and links stay exactly what its creator published,
         including for the joke listings.
       </p>
     </div>
@@ -178,9 +172,9 @@
       <ul style="color:var(--paper-dim); max-width:64ch;">
         
         <li>Every property-class coin's rate is fixed once at deploy time and doesn't update on its own. A real deployment would want a live price feed behind each class, and real USDG should just be the actual USDG stablecoin.</li>
-        <li>There's no real Uniswap v4 pool behind migration on testnet — <code>TestnetMigrator</code> just holds whatever it's given (ETH, and a class coin if one was picked) so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it — this applies to both pools when a class was picked, not just one.</li>
-        <li>The price chart plots implied price per trade in trade sequence, not real timestamps (avoids an RPC call per trade), and it's a simple line — no candles, no OHLC aggregation, no zoom/pan.</li>
-        <li>Launch images are real now — resized client-side and embedded directly in the on-chain metadata — but they still aren't pinned to IPFS or any external host, and they're capped small (a few KB) specifically because a launch's metadata is a string in contract calldata, so gas cost scales with its size.</li>
+        <li>There's no real Uniswap v4 pool behind migration on testnet. <code>TestnetMigrator</code> just holds whatever it's given (ETH, and a class coin if one was picked) so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it. This applies to both pools when a class was picked, not just one.</li>
+        <li>The price chart plots implied price per trade in trade sequence, not real timestamps (avoids an RPC call per trade), and it's a simple line, no candles, no OHLC aggregation, no zoom/pan.</li>
+        <li>Launch images are real now, resized client-side and embedded directly in the on-chain metadata, but they still aren't pinned to IPFS or any external host, and they're capped small (a few KB) specifically because a launch's metadata is a string in contract calldata, so gas cost scales with its size.</li>
         <li>Nothing here evaluates whether tokenizing a specific physical property makes the resulting coin a security, a real-estate-adjacent financial product, or something requiring registration in your jurisdiction.</li>
       </ul>
     </div>
@@ -190,14 +184,18 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — a demo launchpad.</span>
-    <span><a href="classes.html">Property classes</a> · <a href="launch.html">Launch</a></span>
+    <span class="foot-copy">&copy; 2026 CASTLE. All rights reserved.</span>
+    <div class="foot-links">
+      <a class="foot-row" href="https://explorer.testnet.chain.robinhood.com/address/0x31Ed87F608D0833Be870d1BAE60E90b88818B9fF" target="_blank" rel="noopener">Dev wallet address <b>0x31Ed…18B9fF</b></a>
+      <span class="foot-row is-pending">$CASTLE contract address <b>soon</b></span>
+    </div>
   </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
+<script src="assets/brand.js?v=L205431"></script>
 <script>
   Parcel.loadDeployment().then((d) => {
     const panel = document.getElementById("deployment-panel");
