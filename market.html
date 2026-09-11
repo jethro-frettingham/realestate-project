@@ -3,31 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Market · Parcel</title>
-<meta name="description" content="Trade a launch on Parcel — live curve state, buy/sell, recent trades.">
+<title>CASTLE | Home</title>
+<meta name="description" content="Trade a launch on CASTLE, live curve state, buy/sell, recent trades.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23C4FF9E'/%3E%3Cstop offset='1' stop-color='%237FD84E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cpath fill='%230B140A' d='M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/brand.css?v=L205431">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="index.html">
-      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="4" y="4" width="22" height="22"/>
-        <path d="M4 12 L26 12 M12 4 L12 26" stroke-width="1.2" opacity="0.6"/>
-        <circle cx="19" cy="19" r="3.4"/>
+      <svg class="mark" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+        <path fill="currentColor" d="M4 24V12H9V8H13V12H17V8H21V12H26V24Z"/>
       </svg>
-      <span>Parcel<span class="sub">on Robinhood Chain Testnet</span></span>
+      <span><i></i><b>CASTLE</b></span>
     </a>
     <nav class="primary">
-      <a href="index.html" aria-current="page">Markets</a>
+      <a href="index.html" aria-current="page">Home</a>
+      <a href="browse.html">Browse markets</a>
       <a href="classes.html">Property classes</a>
-      <a href="launch.html">Launch</a>
-      <a href="docs.html">How it works</a>
+      <a href="launch.html">Launchpad</a>
+      <a href="docs.html" target="_blank" rel="noopener">Docs<svg class="ext" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5H5.5A1.5 1.5 0 0 0 4 6.5v8A1.5 1.5 0 0 0 5.5 16h8a1.5 1.5 0 0 0 1.5-1.5V12"/><path d="M11.5 4H16v4.5M16 4l-6.5 6.5"/></svg></a>
     </nav>
     <div style="display:flex; align-items:center; gap:12px;">
+      <a class="btn-x" href="https://x.com/castle_markets" target="_blank" rel="noopener" aria-label="CASTLE on X" title="CASTLE on X"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
       <span class="chain-tag">Robinhood Chain Testnet</span>
       <button class="btn-connect" data-connect>Connect wallet</button>
     </div>
@@ -44,28 +46,27 @@
       <div style="display:flex; align-items:center; gap:14px;">
         <div class="market-icon" id="mk-icon" style="width:52px; height:52px; overflow:hidden; flex:none;"></div>
         <div>
-          <span class="eyebrow-tag" id="mk-tag">Loading…</span>
-          <h1 style="margin-top:8px;" id="mk-name">—</h1>
+          <h1 style="margin-top:8px;" id="mk-name">-</h1>
         </div>
       </div>
-      <p class="lede" id="mk-sub">—</p>
+      <p class="lede" id="mk-sub">-</p>
       <div style="display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:13px; color:var(--paper-dim); margin-top:-8px; margin-bottom:24px;">
         <span>CA:</span>
-        <span id="mk-ca-top" style="cursor:pointer; color:var(--brass-bright);" title="Click to copy">—</span>
+        <span id="mk-ca-top" style="cursor:pointer; color:var(--brass-bright);" title="Click to copy">-</span>
       </div>
 
       <div class="launch-grid" style="margin-top:36px;">
         <div>
           <div class="spec" style="margin-bottom:24px;">
-            <div class="spec-row"><span class="k">Paired with</span><span class="v brass" id="mk-pair">—</span></div>
-            <div class="spec-row"><span class="k">Migration progress</span><span class="v" id="mk-progress">—</span></div>
-            <div class="spec-row"><span class="k">Trading fee</span><span class="v" id="mk-fee">—</span></div>
-            <div class="spec-row"><span class="k">Creator</span><span class="v" id="mk-creator">—</span></div>
-            <div class="spec-row"><span class="k">Curve contract</span><span class="v" id="mk-curve-link">—</span></div>
+            <div class="spec-row"><span class="k">Paired with</span><span class="v brass" id="mk-pair">-</span></div>
+            <div class="spec-row"><span class="k">Migration progress</span><span class="v" id="mk-progress">-</span></div>
+            <div class="spec-row"><span class="k">Trading fee</span><span class="v" id="mk-fee">-</span></div>
+            <div class="spec-row"><span class="k">Creator</span><span class="v" id="mk-creator">-</span></div>
+            <div class="spec-row"><span class="k">Curve contract</span><span class="v" id="mk-curve-link">-</span></div>
           </div>
 
           <h3>Price</h3>
-          <p class="hint" style="margin-bottom:12px;">Implied price per trade, from this curve's own <code>Trade</code> events — plotted in trade order, not wall-clock time (no per-trade timestamp lookups).</p>
+          <p class="hint" style="margin-bottom:12px;">Implied price per trade, from this curve's own <code>Trade</code> events, plotted in trade order, not wall-clock time (no per-trade timestamp lookups).</p>
           <div id="mk-chart" style="margin-bottom:28px; min-height:60px;" class="sub">Loading price history…</div>
 
           <h3>Recent trades</h3>
@@ -75,7 +76,7 @@
 
         <aside class="panel">
           <h3>Trade</h3>
-          <div class="sub" id="mk-migrated-note" style="display:none;">This market has migrated — the curve no longer trades. See its pool(s) on the explorer.</div>
+          <div class="sub" id="mk-migrated-note" style="display:none;">This market has migrated. The curve no longer trades. See its pool(s) on the explorer.</div>
 
           <div class="fee-picker" style="margin: 14px 0 18px;" id="mk-mode-tabs">
             <button type="button" class="fee-opt" id="mk-buy-tab" aria-pressed="true">Buy</button>
@@ -93,7 +94,7 @@
           <div class="field">
             <label id="mk-amount-label" for="mk-amount">Pay with ETH</label>
             <input type="text" id="mk-amount" placeholder="0.00" inputmode="decimal">
-            <p class="hint" id="mk-preview">—</p>
+            <p class="hint" id="mk-preview">-</p>
           </div>
 
           <div class="disclosure" id="mk-disclosure">Checking for a live deployment…</div>
@@ -108,14 +109,18 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Parcel — Robinhood Chain Testnet.</span>
-    <span><a href="docs.html">How it works</a> · <a href="index.html">Markets</a></span>
+    <span class="foot-copy">&copy; 2026 CASTLE. All rights reserved.</span>
+    <div class="foot-links">
+      <a class="foot-row" href="https://explorer.testnet.chain.robinhood.com/address/0x31Ed87F608D0833Be870d1BAE60E90b88818B9fF" target="_blank" rel="noopener">Dev wallet address <b>0x31Ed…18B9fF</b></a>
+      <span class="foot-row is-pending">$CASTLE contract address <b>soon</b></span>
+    </div>
   </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="assets/classes.js"></script>
 <script src="assets/app.js"></script>
+<script src="assets/brand.js?v=L205431"></script>
 <script>
   const curveAddress = new URLSearchParams(location.search).get("curve");
   const GENERIC_COIN_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.2c0-1.2 1.1-2 2.5-2s2.5.8 2.5 2c0 2.6-5 1.4-5 4 0 1.2 1.1 2 2.5 2s2.5-.8 2.5-2"/></svg>`;
@@ -168,7 +173,7 @@
       state = await Parcel.fetchCurveState(curveAddress);
     } catch (err) {
       console.error(err);
-      setStatus("Couldn't load this market — check the curve address in the URL.", true);
+      setStatus("Couldn't load this market. Check the curve address in the URL.", true);
       return;
     }
     if (!state) return;
@@ -176,8 +181,8 @@
     document.getElementById("mk-tag").textContent = state.symbol;
     document.getElementById("mk-name").textContent = state.name;
     document.getElementById("mk-sub").textContent = state.propertyClass
-      ? "Tethered to " + Parcel.classDisplayName(state.propertyClass) + " — migrates into two pools."
-      : "No property class — migrates into a single ETH pool.";
+      ? "Tethered to " + Parcel.classDisplayName(state.propertyClass) + ". Migrates into two pools."
+      : "No property class. Migrates into a single ETH pool.";
     const pairEl = document.getElementById("mk-pair");
     if (state.propertyClass) {
       pairEl.innerHTML = `<a href="coin.html?coin=${encodeURIComponent(state.propertyClass)}" style="color:inherit;">${Parcel.classDisplayName(state.propertyClass)}</a>`;
@@ -206,7 +211,7 @@
 
     const pct = Number(state.tokensSold * 10000n / state.curveSupply) / 100;
     document.getElementById("mk-progress").textContent = state.migrated
-      ? "Migrated — sold out"
+      ? "Migrated, sold out"
       : pct.toFixed(1) + "% (" + fmtTokens(state.tokensSold) + " / " + fmtTokens(state.curveSupply) + " tokens)";
 
     const curveLink = document.getElementById("mk-curve-link");
@@ -227,11 +232,11 @@
       document.getElementById("mk-mode-tabs").style.display = "none";
       document.getElementById("mk-amount").disabled = true;
       actionBtn.disabled = true;
-      actionBtn.textContent = "Migrated — trading closed here";
+      actionBtn.textContent = "Migrated, trading closed here";
     }
 
     // Populate the "Pay with" currency options: ETH always, plus USDG and
-    // the market's own paired class coin (if it has one) — both real,
+    // the market's own paired class coin (if it has one), both real,
     // redeemable-for-ETH PropertyClassCoin instances.
     if (deployment.usdg) currencyAddresses.USDG = deployment.usdg;
     if (state.propertyClass && deployment.classCoins && deployment.classCoins[state.propertyClass]) {
@@ -244,7 +249,7 @@
       currencyEl.appendChild(opt);
     }
     if (Object.keys(currencyAddresses).length === 0) {
-      currencyFieldEl.style.display = "none"; // nothing but ETH available — no picker needed
+      currencyFieldEl.style.display = "none"; // nothing but ETH available, no picker needed
     }
 
     loadTradesAndChart();
@@ -283,11 +288,11 @@
     const points = chronological.map((t) => {
       const ethAmt = Number(ethers.formatEther(t.isBuy ? t.ethIn : t.ethOut));
       const tokenAmt = Number(ethers.formatEther(t.isBuy ? t.tokensOut : t.tokensIn));
-      return tokenAmt > 0 ? (ethAmt / tokenAmt) * 1e9 : null; // gwei per token — far more readable than ~1e-9 ETH
+      return tokenAmt > 0 ? (ethAmt / tokenAmt) * 1e9 : null; // gwei per token, far more readable than ~1e-9 ETH
     }).filter((p) => p !== null && p > 0);
 
     if (points.length < 2) {
-      chartEl.innerHTML = buildEmptyChartSvg(points.length === 0 ? "No trades yet" : "One trade so far — need at least two to plot a line");
+      chartEl.innerHTML = buildEmptyChartSvg(points.length === 0 ? "No trades yet" : "One trade so far, need at least two to plot a line");
       return;
     }
     chartEl.innerHTML = buildPriceChartSvg(points);
@@ -322,7 +327,7 @@
       </svg>
       <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; color:var(--paper-dim); margin-top:6px;">
         <span>${points.length} trades plotted</span>
-        <span>${minP.toLocaleString(undefined, { maximumFractionDigits: 3 })} – ${maxP.toLocaleString(undefined, { maximumFractionDigits: 3 })} gwei/token</span>
+        <span>${minP.toLocaleString(undefined, { maximumFractionDigits: 3 })} to ${maxP.toLocaleString(undefined, { maximumFractionDigits: 3 })} gwei/token</span>
       </div>`;
   }
 
@@ -361,7 +366,7 @@
   async function updatePreview() {
     const amt = parseFloat(amountEl.value);
     const previewEl = document.getElementById("mk-preview");
-    if (!state || !amt || amt <= 0) { previewEl.textContent = "—"; return; }
+    if (!state || !amt || amt <= 0) { previewEl.textContent = "-"; return; }
     if (mode === "buy") {
       const currency = currencyEl.value;
       let ethEquivalent = amt;
@@ -375,7 +380,7 @@
       const via = currency === "ETH" ? "" : " (≈" + ethEquivalent.toLocaleString(undefined, { maximumFractionDigits: 5 }) + " ETH after redeeming)";
       previewEl.textContent = "≈ " + Math.round(tokensOut).toLocaleString() + " " + state.symbol + " (before fee)" + via;
     } else {
-      previewEl.textContent = "Confirm in your wallet to see the exact ETH out — selling depends on live curve reserves.";
+      previewEl.textContent = "Confirm in your wallet to see the exact ETH out. Selling depends on live curve reserves.";
     }
   }
   amountEl.addEventListener("input", updatePreview);

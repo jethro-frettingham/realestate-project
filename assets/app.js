@@ -1,9 +1,9 @@
 /**
- * app.js — shared front-end logic for Parcel.
+ * app.js, shared front-end logic for CASTLE.
  *
  * Robinhood Chain Testnet is wired for real: RH_CHAIN below is the
  * network's actual public details, and `loadDeployment()` fetches
- * deployments/testnet.json — written by script/Deploy.s.sol — to learn
+ * deployments/testnet.json, written by script/Deploy.s.sol, to learn
  * the live ParcelFactory address. Launches are ETH-native: connect a
  * wallet, send ETH, get tokens. No pair coin, no minting step, nothing to
  * approve before your first buy. Until deployments/testnet.json has a
@@ -20,7 +20,7 @@ const RH_CHAIN = {
   blockExplorerUrls: ["https://explorer.testnet.chain.robinhood.com"],
 };
 
-// Minimal ABI fragments — just what the site calls.
+// Minimal ABI fragments, just what the site calls.
 const FACTORY_ABI = [
   "function createLaunch(string name_, string symbol_, address pairCoin_, uint16 feeBps, string metadataURI, uint256 minTokensOut) payable returns (uint256 launchId, address curveAddr)",
   "function launchCount() view returns (uint256)",
@@ -64,7 +64,7 @@ const PROPERTY_COIN_ABI = [
 ];
 
 /* ---------------------------------------------------------------------- */
-/* Deployment loader — reads deployments/testnet.json                     */
+/* Deployment loader, reads deployments/testnet.json                     */
 /* ---------------------------------------------------------------------- */
 
 let deploymentCache = null;
@@ -82,13 +82,13 @@ async function loadDeployment() {
     deploymentCache = json;
     return json;
   } catch (err) {
-    console.warn("No deployment found yet — running in preview mode.", err);
+    console.warn("No deployment found yet, running in preview mode.", err);
     return null;
   }
 }
 
 /* ---------------------------------------------------------------------- */
-/* Wallet connect — real network add/switch, ethers v6 where loaded       */
+/* Wallet connect, real network add/switch, ethers v6 where loaded       */
 /* ---------------------------------------------------------------------- */
 
 let currentAccount = null;
@@ -141,22 +141,22 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ---------------------------------------------------------------------- */
-/* Launch submission — real createLaunch() call via ethers v6             */
+/* Launch submission, real createLaunch() call via ethers v6             */
 /* ---------------------------------------------------------------------- */
 
 /**
  * Submits a launch to the deployed ParcelFactory. Requires ethers v6 to
  * be loaded on the page and a deployment to exist. One transaction,
- * ETH-native — no approval step. `pairCoinAddress` is optional: pass a
+ * ETH-native, no approval step. `pairCoinAddress` is optional: pass a
  * PropertyClassCoin address to pick a class (migration seeds two pools),
  * or omit/pass null for no class (single ETH pool at migration).
  *
  * @returns {Promise<{launchId: string, curve: string, token: string, txHash: string}>}
  */
 async function submitLaunch({ name, symbol, pairCoinAddress, feeBps, metadataURI, firstBuyIn }) {
-  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   const deployment = await loadDeployment();
-  if (!deployment) throw new Error("No live deployment found yet — see DEPLOY.md to deploy the contracts first.");
+  if (!deployment) throw new Error("No live deployment found yet. See DEPLOY.md to deploy the contracts first.");
   if (!window.ethereum) throw new Error("No wallet connected.");
 
   const provider = new ethers.BrowserProvider(window.ethereum);
@@ -184,12 +184,12 @@ async function submitLaunch({ name, symbol, pairCoinAddress, feeBps, metadataURI
 }
 
 /* ---------------------------------------------------------------------- */
-/* Property-class coins — buy/sell against ETH at the fixed rate          */
+/* Property-class coins, buy/sell against ETH at the fixed rate          */
 /* ---------------------------------------------------------------------- */
 
 /** Mint a property-class coin (or USDG) by sending ETH, at its fixed rate. */
 async function mintPropertyCoin(coinAddress, ethIn) {
-  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   if (!window.ethereum) throw new Error("No wallet connected.");
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
@@ -201,7 +201,7 @@ async function mintPropertyCoin(coinAddress, ethIn) {
 
 /** Redeem a property-class coin (or USDG) back to ETH, at its fixed rate. */
 async function redeemPropertyCoin(coinAddress, coinIn) {
-  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   if (!window.ethereum) throw new Error("No wallet connected.");
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
@@ -212,7 +212,7 @@ async function redeemPropertyCoin(coinAddress, coinIn) {
 }
 
 /** Read-only: a property coin's fixed rate and (if a wallet is connected)
- *  the caller's balance of it. Uses the public RPC — no wallet required
+ *  the caller's balance of it. Uses the public RPC, no wallet required
  *  just to read the rate. */
 async function readPropertyCoin(coinAddress, account) {
   const deployment = await loadDeployment();
@@ -227,7 +227,7 @@ async function readPropertyCoin(coinAddress, account) {
 }
 
 /** Full live state for one property-class coin's own page: rate, current
- *  supply, and the ETH actually held as reserves (a plain balance check —
+ *  supply, and the ETH actually held as reserves (a plain balance check,
  *  the coin is fully collateralized by construction, so this should
  *  always equal supply × rate). */
 async function fetchPropertyCoinFullState(coinAddress) {
@@ -241,7 +241,7 @@ async function fetchPropertyCoinFullState(coinAddress) {
   return { name, symbol, weiPerUnit, totalSupply, ethReserves };
 }
 
-/** Every Minted/Redeemed event for one property-class coin, newest first —
+/** Every Minted/Redeemed event for one property-class coin, newest first,
  *  this coin's equivalent of a market's Trade history. */
 async function fetchPropertyCoinActivity(coinAddress, maxResults = 50) {
   const deployment = await loadDeployment();
@@ -265,7 +265,7 @@ async function fetchPropertyCoinActivity(coinAddress, maxResults = 50) {
 /* ---------------------------------------------------------------------- */
 
 /** Every launch ever created, read directly from ParcelFactory's on-chain
- *  array — no indexer. Returns [] if nothing's deployed yet. */
+ *  array, no indexer. Returns [] if nothing's deployed yet. */
 async function fetchAllLaunches() {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined") return [];
@@ -284,7 +284,7 @@ async function fetchAllLaunches() {
   return launches.reverse(); // newest first
 }
 
-/** Look up a single launch's on-chain record by its curve address — for
+/** Look up a single launch's on-chain record by its curve address, for
  *  pages (like market.html) that only have the curve address in the URL
  *  and need the metadataURI (name, links, image) that goes with it.
  *  Scans every launch client-side; fine at today's testnet scale. */
@@ -312,7 +312,7 @@ function escapeHtml(s) {
 
 /** Reads an <input type=file> image, downscales it to at most maxDim on
  *  its longer side, and re-encodes it as a compressed JPEG data URI.
- *  This runs entirely in the browser (canvas), no upload anywhere — the
+ *  This runs entirely in the browser (canvas), no upload anywhere, the
  *  resulting string is what gets embedded in the launch's on-chain
  *  metadata, so keeping it small matters: metadataURI is a string in
  *  contract calldata, and gas cost scales with its size. A few KB is
@@ -343,7 +343,7 @@ function resizeImageToDataUri(file, maxDim = 200, quality = 0.72) {
   });
 }
 
-/** Full live state for one market's curve, plus its token's name/symbol —
+/** Full live state for one market's curve, plus its token's name/symbol,
  *  everything a trading page needs, all view calls. */
 async function fetchCurveState(curveAddress) {
   const deployment = await loadDeployment();
@@ -367,7 +367,7 @@ async function fetchCurveState(curveAddress) {
   };
 }
 
-/** Recent Trade events for one curve, straight from chain logs — this is
+/** Recent Trade events for one curve, straight from chain logs, this is
  *  a trade list, not a price chart (no candles/OHLC aggregation here). */
 async function fetchRecentTrades(curveAddress, maxResults = 50) {
   const deployment = await loadDeployment();
@@ -383,7 +383,7 @@ async function fetchRecentTrades(curveAddress, maxResults = 50) {
   }));
 }
 
-/** Total ETH traded on one curve, ever — sums every Trade event's ethIn
+/** Total ETH traded on one curve, ever, sums every Trade event's ethIn
  *  (buys) and ethOut (sells). Real, not estimated, but does mean scanning
  *  every log for that curve; fine at today's testnet volumes. */
 async function fetchMarketVolumeEth(curveAddress) {
@@ -395,9 +395,9 @@ async function fetchMarketVolumeEth(curveAddress) {
   return events.reduce((sum, e) => sum + (e.args.isBuy ? e.args.ethIn : e.args.ethOut), 0n);
 }
 
-/** Buy on an existing curve — same shape as a launch's first buy. */
+/** Buy on an existing curve, same shape as a launch's first buy. */
 async function buyOnCurve(curveAddress, ethIn) {
-  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   if (!window.ethereum) throw new Error("No wallet connected.");
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
@@ -409,16 +409,16 @@ async function buyOnCurve(curveAddress, ethIn) {
 
 /**
  * Buy into a curve using USDG or a property class coin instead of ETH
- * directly — pre-migration, same as every other buy. There's no contract
+ * directly, pre-migration, same as every other buy. There's no contract
  * path that takes the coin straight in; this chains two real
  * transactions the coin already supports: redeem the coin for the exact
  * ETH backing it (read back from the coin's own Redeemed event, not
  * estimated), then buy on the curve with that ETH. Two wallet
- * confirmations, not one — that's an honest tradeoff of this being
+ * confirmations, not one, that's an honest tradeoff of this being
  * front-end orchestration rather than a single contract call.
  */
 async function buyOnCurveWithCoin(curveAddress, coinAddress, coinAmountIn) {
-  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   if (!window.ethereum) throw new Error("No wallet connected.");
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
@@ -437,7 +437,7 @@ async function buyOnCurveWithCoin(curveAddress, coinAddress, coinAmountIn) {
       if (parsed && parsed.name === "Redeemed") ethOut = parsed.args.ethOut;
     } catch (_) { /* not our event */ }
   }
-  if (ethOut === null) throw new Error("Couldn't confirm the redeem amount — try again.");
+  if (ethOut === null) throw new Error("Couldn't confirm the redeem amount, try again.");
 
   const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
   const buyTx = await curve.buy(0n, { value: ethOut });
@@ -449,7 +449,7 @@ async function buyOnCurveWithCoin(curveAddress, coinAddress, coinAmountIn) {
 /** Sell on an existing curve. Needs one approval the first time (the
  *  curve pulls the launch token via transferFrom), then sells. */
 async function sellOnCurve(curveAddress, tokenAddress, tokenAmountIn) {
-  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load — check your connection and reload.");
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   if (!window.ethereum) throw new Error("No wallet connected.");
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
@@ -457,7 +457,7 @@ async function sellOnCurve(curveAddress, tokenAddress, tokenAmountIn) {
   const token = new ethers.Contract(tokenAddress, TOKEN_ABI, signer);
   const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
 
-  // ERC20 allowance isn't in TOKEN_ABI's minimal set — check via a raw call.
+  // ERC20 allowance isn't in TOKEN_ABI's minimal set, check via a raw call.
   const allowanceIface = new ethers.Interface(["function allowance(address,address) view returns (uint256)"]);
   const data = allowanceIface.encodeFunctionData("allowance", [account, curveAddress]);
   const raw = await provider.call({ to: tokenAddress, data });
@@ -474,7 +474,7 @@ async function sellOnCurve(curveAddress, tokenAddress, tokenAmountIn) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Glyph renderer — small elevation-sketch icons per property class       */
+/* Glyph renderer, small elevation-sketch icons per property class       */
 /* ---------------------------------------------------------------------- */
 
 function parcelGlyph(cfg) {
@@ -608,18 +608,18 @@ function classDisplayName(ticker) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Bonding curve math — mirrors contracts/BondingCurve.sol                */
+/* Bonding curve math, mirrors contracts/BondingCurve.sol                */
 /* ---------------------------------------------------------------------- */
 
 const CURVE = {
   totalSupply: 1_000_000_000,
   curveSupply: 800_000_000,
   reserveSupply: 200_000_000,
-  virtualEthReserve: 3,             // ETH — matches BondingCurve.VIRTUAL_ETH_RESERVE
+  virtualEthReserve: 3,             // ETH, matches BondingCurve.VIRTUAL_ETH_RESERVE
   virtualTokenReserve: 1_073_000_000, // matches BondingCurve.VIRTUAL_TOKEN_RESERVE
 };
 
-/** Fixed virtual reserves, straight from the constants above — this is a
+/** Fixed virtual reserves, straight from the constants above, this is a
  *  read, not a derivation; the contract doesn't compute these from
  *  anything either. */
 function virtualReserves() {
