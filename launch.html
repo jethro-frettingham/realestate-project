@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CASTLE | Launchpad</title>
-<meta name="description" content="Launch a coin tethered to a property class on Robinhood Chain Testnet.">
+<meta name="description" content="Launch a coin tethered to a property class on Robinhood Chain.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23C4FF9E'/%3E%3Cstop offset='1' stop-color='%237FD84E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cpath fill='%230B140A' d='M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="stylesheet" href="assets/brand.css?v=L205431">
@@ -30,7 +30,7 @@
     </nav>
     <div style="display:flex; align-items:center; gap:12px;">
       <a class="btn-x" href="https://x.com/castle_markets" target="_blank" rel="noopener" aria-label="CASTLE on X" title="CASTLE on X"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
-      <span class="chain-tag">Robinhood Chain Testnet</span>
+      <span class="chain-tag">Robinhood Chain</span>
       <button class="btn-connect" data-connect>Connect wallet</button>
     </div>
   </div>
@@ -142,7 +142,6 @@
   <div class="wrap">
     <span class="foot-copy">&copy; 2026 CASTLE. All rights reserved.</span>
     <div class="foot-links">
-      <a class="foot-row" href="https://explorer.testnet.chain.robinhood.com/address/0x31Ed87F608D0833Be870d1BAE60E90b88818B9fF" target="_blank" rel="noopener">Dev wallet address <b>0x31Ed…18B9fF</b></a>
       <span class="foot-row is-pending">$CASTLE contract address <b>soon</b></span>
     </div>
   </div>
@@ -213,8 +212,8 @@
         the deployed Launchpad</a> — the full supply goes straight into a real Uniswap v4 pool in the same
         transaction, paid in ETH, nothing to approve or mint first, whether or not you pick a class.${faucetLine}`;
     } else {
-      disclosure.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet at
-        <code>deployments/testnet.json</code>. The terms below are an estimate of the real curve math, but
+      disclosure.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet.
+        The terms below are an estimate of the real curve math, but
         "Launch" won't submit a transaction until the contracts are deployed.`;
     }
   }

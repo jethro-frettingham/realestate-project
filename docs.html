@@ -23,7 +23,7 @@
     </a>
     <div style="display:flex; align-items:center; gap:12px;">
       <a class="btn-x" href="https://x.com/castle_markets" target="_blank" rel="noopener" aria-label="CASTLE on X" title="CASTLE on X"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
-      <span class="chain-tag">Robinhood Chain Testnet</span>
+      <span class="chain-tag">Robinhood Chain</span>
       <a class="btn-connect" href="index.html">Back to home</a>
     </div>
   </div>
@@ -45,7 +45,7 @@
   <section class="section" id="deployment">
     <div class="wrap">
       <h2>Deployment</h2>
-      <p>Live addresses for the current deployment, read straight from <code>deployments/testnet.json</code> or <code>mainnet.json</code> depending on your connected chain. This updates automatically the next time someone redeploys.</p>
+      <p>Live addresses for the current deployment, read straight from chain. This updates automatically the next time someone redeploys.</p>
       <div class="spec" id="deployment-panel" style="max-width:640px;">
         <div class="spec-row"><span class="k">Status</span><span class="v" id="dep-status">Checking…</span></div>
       </div>
@@ -182,7 +182,7 @@
   <section class="section" id="gaps" style="border-bottom:none;">
     <div class="wrap">
       <h2>What this repo doesn't do yet</h2>
-      <p>The contracts are real Uniswap v4 integration, tested against a real (locally-deployed) <code>PoolManager</code>, and deployable to testnet or mainnet. Some things are still open:</p>
+      <p>The contracts are real Uniswap v4 integration, tested against a real (locally-deployed) <code>PoolManager</code> and against the live Robinhood Chain <code>PoolManager</code> itself. Some things are still open:</p>
       <ul style="color:var(--paper-dim); max-width:64ch;">
         <li>The 14 live-tier classes (housing, farmland, RVs, and similar) are repriced by an authorized updater calling <code>reposition()</code> when their reference index publishes a new number — that's a manual/scripted action taken periodically, not a fully automated 60-second oracle push, since none of those sources actually publish faster than that.</li>
         <li>A live-tier class can't yet be picked as a launch's pairing on <code>launch.html</code> — <code>Launchpad</code> expects a fixed-rate <code>mint()</code>/<code>redeem()</code> interface that a PegPool-backed coin doesn't implement. It's still fully tradeable on its own via the classes page.</li>
@@ -200,7 +200,6 @@
   <div class="wrap">
     <span class="foot-copy">&copy; 2026 CASTLE. All rights reserved.</span>
     <div class="foot-links">
-      <a class="foot-row" href="https://explorer.testnet.chain.robinhood.com/address/0x31Ed87F608D0833Be870d1BAE60E90b88818B9fF" target="_blank" rel="noopener">Dev wallet address <b>0x31Ed…18B9fF</b></a>
       <span class="foot-row is-pending">$CASTLE contract address <b>soon</b></span>
     </div>
   </div>

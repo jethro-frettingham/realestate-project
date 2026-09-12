@@ -10,9 +10,10 @@ tokens: no approval step, no minting, whether or not a class is picked —
 picking one just means the market trades against that class's coin for
 its whole life instead of ETH.
 
-**Status: real Uniswap v4 integration, tested against a real (locally
-deployed) `PoolManager`, deployable to Robinhood Chain Testnet or mainnet
-— see [DEPLOY.md](DEPLOY.md). Still unaudited.** See
+**Status: real Uniswap v4 integration, tested against both a real
+(locally-deployed) `PoolManager` and the actual live Robinhood Chain
+mainnet `PoolManager` itself — see [DEPLOY.md](DEPLOY.md) for deploying.
+Still unaudited.** See
 [What this repo doesn't do yet](#what-this-repo-doesnt-do-yet) below
 before you point real money at any of this.
 
@@ -133,22 +134,22 @@ offline.
 
 ## Deploying
 
-See **[DEPLOY.md](DEPLOY.md)** for the full walkthrough (testnet and
-mainnet). Short version, testnet:
+See **[DEPLOY.md](DEPLOY.md)** for the full walkthrough, including a
+pre-mainnet checklist and how to rehearse the deploy script against a
+local fork before it touches anything real. Short version:
 
 ```bash
-cp .env.example .env   # fill in PRIVATE_KEY with a funded testnet wallet
-POOL_MANAGER=0x... forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
-git add deployments/testnet.json && git commit -m "Deploy to testnet" && git push
+cp .env.example .env   # fill in PRIVATE_KEY
+PROTOCOL_TREASURY=0x... forge script script/DeployMainnet.s.sol --rpc-url robinhood_mainnet --broadcast
+git add deployments/mainnet.json && git commit -m "Deploy to mainnet" && git push
 ```
 
-`POOL_MANAGER` must be Uniswap v4's `PoolManager` address on Robinhood
-Chain Testnet — look it up yourself rather than trusting a guess (this
-repo doesn't hardcode one for testnet). `assets/app.js` fetches
-`deployments/testnet.json` (or `mainnet.json`, picked by the connected
-wallet's chain) on every page load — once it has a real `launchpad`
+`assets/app.js` fetches the deployment file matching the connected
+wallet's chain on every page load — once it has a real `launchpad`
 address in it, `launch.html` switches from previewing terms to actually
-submitting a `createLaunch` transaction.
+submitting a `createLaunch` transaction. `DEPLOY.md` also covers
+deploying this same stack to a pre-production network first, for anyone
+who wants to exercise it before mainnet.
 
 ## What this repo doesn't do yet
 
