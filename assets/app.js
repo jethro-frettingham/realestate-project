@@ -57,6 +57,7 @@ const TOKEN_ABI = [
   "event RewardAdded(uint256 amount)",
 ];
 const BUYBACK_ABI = [
+  "function executeBuyback() returns (uint256 ethIn, uint256 tokensBurned)",
   "event BuybackExecuted(uint256 ethIn, uint256 tokensBurned)",
 ];
 const PROPERTY_COIN_ABI = [
@@ -617,6 +618,22 @@ async function collectFeesOnMarket(launchId) {
   return { txHash: receipt.hash };
 }
 
+/** Swaps every ETH balance Buyback.sol holds for the platform token and
+ *  burns it. Permissionless — anyone can trigger this, anytime, whether
+ *  or not they hold the platform token themselves. */
+async function executeBuyback() {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
+  const deployment = await loadDeployment();
+  if (!deployment || !deployment.buyback) throw new Error("No live deployment found yet.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const buyback = new ethers.Contract(deployment.buyback, BUYBACK_ABI, signer);
+  const tx = await buyback.executeBuyback();
+  const receipt = await tx.wait();
+  return { txHash: receipt.hash };
+}
+
 /** Buy into an existing market with ETH, through LaunchRouter. Works
  *  identically whether the price is inside the curve range or the
  *  reserve range above the cap. */
@@ -913,5 +930,5 @@ window.Parcel = {
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin, fetchPropertyCoinFullState, fetchPropertyCoinActivity,
   fetchAllLaunches, fetchLaunchById, decodeMetadata, escapeHtml, resizeImageToDataUri, priceFromSqrtPriceX96, curveProgressPct,
   fetchMarketState, fetchRecentTrades, fetchMarketVolumeEth, buyOnMarket, buyOnMarketWithCoin, sellOnMarket,
-  fetchEarnedRewards, claimMarketRewards, fetchRewardsStats, collectFeesOnMarket,
+  fetchEarnedRewards, claimMarketRewards, fetchRewardsStats, collectFeesOnMarket, executeBuyback,
 };

@@ -108,6 +108,7 @@
         <div class="stat"><b id="stat-burned">—</b><span>$CASTLE burned</span></div>
       </div>
       <p class="sub" id="rewards-status" style="margin-top:12px;">Checking for a live deployment…</p>
+      <button type="button" id="execute-buyback-btn" class="btn btn-outline" style="display:none; margin-top:12px;">Execute buyback</button>
     </div>
   </section>
 
@@ -356,11 +357,37 @@
         "$" + boughtUsd.toLocaleString(undefined, { maximumFractionDigits: boughtUsd < 10 ? 2 : 0 });
       document.getElementById("stat-burned").textContent = burned.toLocaleString(undefined, { maximumFractionDigits: 0 });
       statusEl.style.display = "none";
+      if (deployment.buyback) document.getElementById("execute-buyback-btn").style.display = "inline-block";
     } catch (err) {
       console.error(err);
       statusEl.textContent = "Couldn't load rewards stats: " + (err.message || err);
     }
   }
+
+  document.getElementById("execute-buyback-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const statusEl = document.getElementById("rewards-status");
+    btn.disabled = true;
+    statusEl.style.display = "block";
+    try {
+      statusEl.textContent = "Confirm in your wallet…";
+      const result = await Parcel.executeBuyback();
+      const stats = await Parcel.fetchRewardsStats();
+      const deployment = await Parcel.loadDeployment();
+      const ethUsd = deployment.ethUsd || 0;
+      const boughtUsd = Number(ethers.formatEther(stats.ethSpentOnBuybacks)) * ethUsd;
+      const burned = Number(ethers.formatEther(stats.castleBurned));
+      document.getElementById("stat-bought-back").textContent =
+        "$" + boughtUsd.toLocaleString(undefined, { maximumFractionDigits: boughtUsd < 10 ? 2 : 0 });
+      document.getElementById("stat-burned").textContent = burned.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      statusEl.textContent = "Buyback executed, tx " + result.txHash.slice(0, 10) + "…";
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = err.message || String(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   loadMarkets();
   loadRewardsPanel();
