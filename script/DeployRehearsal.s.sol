@@ -42,7 +42,7 @@ contract DeployRehearsal is Script, DeployCommon {
         PoolManager poolManager = new PoolManager(deployer);
         vm.stopBroadcast();
 
-        Deployed memory d = _deploy(address(poolManager), firstBuy, protocolTreasury, address(0), liveTierUpdater);
+        Deployed memory d = _deploy(address(poolManager), firstBuy, protocolTreasury, address(0), liveTierUpdater, true);
 
         string memory classCoins = _tickerMapJson(d.classCoins);
         string memory pegPools = _tickerMapJson(d.pegPools);

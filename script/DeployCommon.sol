@@ -90,12 +90,23 @@ abstract contract DeployCommon is Script {
     /// @param liveTierUpdater The ops key/multisig authorized to call
     ///        `PegPool.reposition()` for the 14 live-tier classes when
     ///        their reference index publishes a new number.
+    /// @param bootstrapPlatformToken Pass true to launch a platform token
+    ///        through this same Launchpad (the testnet/rehearsal demo
+    ///        path) and wire it into Buyback immediately. Pass false when
+    ///        the platform token ($CASTLE) is launched externally instead
+    ///        (e.g. on Pons, for its own fee/visibility mechanics) — in
+    ///        that case Buyback is left unset (`platformSet == false`,
+    ///        `executeBuyback()` reverts `NothingToBuy`) until a separate,
+    ///        later call to `Buyback.setPlatformPool()` points it at the
+    ///        real pool once that external launch actually exists. See
+    ///        script/SetPlatformPool.s.sol for that follow-up step.
     function _deploy(
         address poolManagerAddr,
         uint256 platformFirstBuyWei,
         address protocolTreasury,
         address realUsdg,
-        address liveTierUpdater
+        address liveTierUpdater,
+        bool bootstrapPlatformToken
     ) internal returns (Deployed memory out) {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
@@ -175,15 +186,19 @@ abstract contract DeployCommon is Script {
         // 7. Bootstrap the platform token (the $CME-equivalent buyback
         //    target) as an ordinary ETH-paired launch, then wire it into
         //    Buyback. This step spends `platformFirstBuyWei` of real ETH
-        //    from the deployer as the platform token's first buy.
-        (uint256 platformLaunchId, address platformToken) = launchpad.createLaunch{value: platformFirstBuyWei}(
-            "Parcel", "PARCEL", address(0), 300, "", 0
-        );
-        out.platformLaunchId = platformLaunchId;
-        out.platformToken = platformToken;
+        //    from the deployer as the platform token's first buy. Skipped
+        //    when the platform token is launched externally instead — see
+        //    the `bootstrapPlatformToken` param doc above.
+        if (bootstrapPlatformToken) {
+            (uint256 platformLaunchId, address platformToken) = launchpad.createLaunch{value: platformFirstBuyWei}(
+                "Parcel", "PARCEL", address(0), 300, "", 0
+            );
+            out.platformLaunchId = platformLaunchId;
+            out.platformToken = platformToken;
 
-        Launchpad.Launch memory platformLaunch = launchpad.getLaunch(platformLaunchId);
-        buyback.setPlatformPool(platformLaunch.poolKey, platformToken);
+            Launchpad.Launch memory platformLaunch = launchpad.getLaunch(platformLaunchId);
+            buyback.setPlatformPool(platformLaunch.poolKey, platformToken);
+        }
 
         vm.stopBroadcast();
     }

@@ -38,7 +38,7 @@ contract Deploy is Script, DeployCommon {
         address deployer = vm.addr(vm.envUint("PRIVATE_KEY"));
         address liveTierUpdater = vm.envOr("LIVE_TIER_UPDATER", deployer);
 
-        Deployed memory d = _deploy(poolManager, firstBuy, deployer, address(0), liveTierUpdater);
+        Deployed memory d = _deploy(poolManager, firstBuy, deployer, address(0), liveTierUpdater, true);
 
         string memory classCoins = _tickerMapJson(d.classCoins);
         string memory pegPools = _tickerMapJson(d.pegPools);

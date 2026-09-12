@@ -31,6 +31,12 @@ import {DeployCommon} from "./DeployCommon.sol";
 /// PegPool's construction and `initialize()` must be called by that same
 /// address, this MUST equal PRIVATE_KEY's own address unless you're
 /// broadcasting this script as that other account.
+///
+/// Does NOT bootstrap a platform token here — $CASTLE launches externally
+/// (Pons, for its own fee/visibility mechanics) rather than through this
+/// Launchpad. Buyback is deployed but left unset until $CASTLE actually
+/// graduates on Pons to a real Uniswap v4 pool; see
+/// script/SetPlatformPool.s.sol for that one-time follow-up.
 contract DeployMainnet is Script, DeployCommon {
     // Verified against Robinhood Chain's own Uniswap v4 deployment docs
     // AND cross-checked against the CME reference page used to scope this
@@ -44,12 +50,18 @@ contract DeployMainnet is Script, DeployCommon {
     address internal constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
 
     function run() external {
-        uint256 firstBuy = vm.envOr("PLATFORM_FIRST_BUY_WEI", uint256(0.05 ether));
         address protocolTreasury = vm.envAddress("PROTOCOL_TREASURY");
         address deployer = vm.addr(vm.envUint("PRIVATE_KEY"));
         address liveTierUpdater = vm.envOr("LIVE_TIER_UPDATER", deployer);
 
-        Deployed memory d = _deploy(POOL_MANAGER, firstBuy, protocolTreasury, USDG, liveTierUpdater);
+        // $CASTLE launches externally (Pons, for its own fee/visibility
+        // mechanics) rather than through this Launchpad, so the platform-
+        // token bootstrap is skipped here — see DeployCommon._deploy's
+        // `bootstrapPlatformToken` doc. Buyback stays unset
+        // (`platformSet == false`) until a later, separate call to
+        // `Buyback.setPlatformPool()` once the real Pons pool exists —
+        // see script/SetPlatformPool.s.sol.
+        Deployed memory d = _deploy(POOL_MANAGER, 0, protocolTreasury, USDG, liveTierUpdater, false);
 
         string memory classCoins = _tickerMapJson(d.classCoins);
         string memory pegPools = _tickerMapJson(d.pegPools);
