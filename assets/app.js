@@ -163,32 +163,99 @@ async function ensureRobinhoodChain() {
 // Back-compat name used by older inline page scripts.
 const ensureRobinhoodTestnet = ensureRobinhoodChain;
 
+function _setConnectedUi(account) {
+  currentAccount = account;
+  document.querySelectorAll("[data-connect]").forEach((btn) => {
+    btn.dataset.connected = "true";
+    btn.textContent = account.slice(0, 6) + "…" + account.slice(-4);
+    btn.title = "Click to disconnect";
+  });
+}
+
+function _setDisconnectedUi() {
+  currentAccount = null;
+  document.querySelectorAll("[data-connect]").forEach((btn) => {
+    delete btn.dataset.connected;
+    btn.textContent = "Connect wallet";
+    btn.removeAttribute("title");
+  });
+}
+
 async function connectWallet() {
-  const btn = document.querySelector("[data-connect]");
   if (!window.ethereum) {
     alert("No injected wallet found. Install MetaMask, Rabby, or Coinbase Wallet to launch on Robinhood Chain.");
     return;
   }
   try {
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-    currentAccount = accounts[0];
     await ensureRobinhoodTestnet();
-    if (btn) {
-      btn.dataset.connected = "true";
-      btn.textContent = currentAccount.slice(0, 6) + "…" + currentAccount.slice(-4);
-    }
-    document.dispatchEvent(new CustomEvent("parcel:connected", { detail: currentAccount }));
+    _setConnectedUi(accounts[0]);
+    document.dispatchEvent(new CustomEvent("parcel:connected", { detail: accounts[0] }));
   } catch (err) {
     console.error("wallet connect failed", err);
     alert("Couldn't connect: " + (err.message || err));
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+/** A dApp can't force a wallet extension to forget the site (that's the
+ *  wallet's own permission, not ours to revoke) — this is a "soft"
+ *  disconnect: it resets our own UI and stops treating the page as
+ *  connected, and best-effort asks newer wallets (EIP-2255) to drop the
+ *  permission too. If the wallet doesn't support that, the wallet stays
+ *  connected under the hood but the site acts disconnected until you
+ *  click Connect again (which most wallets satisfy without a fresh
+ *  approval prompt, since the permission is still there). */
+async function disconnectWallet() {
+  try {
+    await window.ethereum.request({
+      method: "wallet_revokePermissions",
+      params: [{ eth_accounts: {} }],
+    });
+  } catch (_) { /* not supported by this wallet — fine, soft-disconnect still applies */ }
+  _setDisconnectedUi();
+  document.dispatchEvent(new CustomEvent("parcel:disconnected"));
+}
+
+async function _handleConnectButtonClick(e) {
+  if (e.currentTarget.dataset.connected === "true") {
+    await disconnectWallet();
+  } else {
+    await connectWallet();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll("[data-connect]").forEach((btn) => {
-    btn.addEventListener("click", connectWallet);
+    btn.addEventListener("click", _handleConnectButtonClick);
   });
   loadDeployment(); // warm the cache; pages read it via Parcel.loadDeployment()
+
+  // Silently restore the connected state on every fresh page load — this
+  // is a multi-page site (a real navigation, not client-side routing), so
+  // without this the button would forget it was connected on every click
+  // to another page even though the wallet extension itself still
+  // considers the site authorized. eth_accounts (unlike
+  // eth_requestAccounts) never prompts, it just reports what's already
+  // approved.
+  if (window.ethereum) {
+    try {
+      const accounts = await window.ethereum.request({ method: "eth_accounts" });
+      if (accounts.length > 0) {
+        _setConnectedUi(accounts[0]);
+        document.dispatchEvent(new CustomEvent("parcel:connected", { detail: accounts[0] }));
+      }
+    } catch (_) { /* wallet not ready yet, or refused — stay disconnected */ }
+
+    window.ethereum.on?.("accountsChanged", (accounts) => {
+      if (accounts.length === 0) {
+        _setDisconnectedUi();
+        document.dispatchEvent(new CustomEvent("parcel:disconnected"));
+      } else if (accounts[0] !== currentAccount) {
+        _setConnectedUi(accounts[0]);
+        document.dispatchEvent(new CustomEvent("parcel:connected", { detail: accounts[0] }));
+      }
+    });
+  }
 });
 
 /* ---------------------------------------------------------------------- */
@@ -926,7 +993,7 @@ function quoteBuy(ethIn, tokensSoldSoFar) {
 
 window.Parcel = {
   parcelGlyph, renderClassTile, classDisplayName, virtualReserves, quoteBuy, CURVE,
-  connectWallet, loadDeployment, submitLaunch, ensureRobinhoodChain, ensureRobinhoodTestnet, RH_CHAIN, RH_TESTNET, RH_MAINNET,
+  connectWallet, disconnectWallet, loadDeployment, submitLaunch, ensureRobinhoodChain, ensureRobinhoodTestnet, RH_CHAIN, RH_TESTNET, RH_MAINNET,
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin, fetchPropertyCoinFullState, fetchPropertyCoinActivity,
   fetchAllLaunches, fetchLaunchById, decodeMetadata, escapeHtml, resizeImageToDataUri, priceFromSqrtPriceX96, curveProgressPct,
   fetchMarketState, fetchRecentTrades, fetchMarketVolumeEth, buyOnMarket, buyOnMarketWithCoin, sellOnMarket,
