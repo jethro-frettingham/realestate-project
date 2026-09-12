@@ -4194,52 +4194,20 @@ body.has-toc main > .toc { width: 100%; }
 }
 
 
-/* ---------- Dark stats strip: homepage headline numbers -----------------
-   A deliberate dark break in an otherwise light page, not a dark-mode
-   variant — always dark regardless of the viewer's theme setting, same
-   way a photo or a video block would be. */
-
-.stats-strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  background: linear-gradient(180deg, #121815, #0a0e0c);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 30px -18px rgba(0, 0, 0, 0.55);
-}
-
-.stats-strip .stat-dark {
-  padding: 22px 18px;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  text-align: left;
-}
-
-.stats-strip .stat-dark:first-child { border-left: none; }
-
-.stats-strip .stat-dark .stat-dark-label {
-  display: block;
-  font-family: var(--font-mono, monospace);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 8px;
-}
-
-.stats-strip .stat-dark b {
-  display: block;
-  font-family: var(--font-mono, monospace);
-  font-weight: 600;
-  font-size: clamp(20px, 2.4vw, 28px);
-  color: #EAFBE0;
-  letter-spacing: 0.01em;
-}
+/* ---------- Homepage live stats: 4-column statrow variant ---------------
+   Same card as every other .statrow (white gradient, hairline dividers,
+   green gradient figures, e.g. the Rewards & buyback panel) — this only
+   overrides the column count. Deliberately reuses .statrow rather than a
+   standalone block so it also inherits body.is-home .statrow's margin-top
+   tuning further up this file, which exists specifically to clear the
+   hero board illustration; a from-scratch class didn't have that and the
+   tiles clipped into it. */
+.statrow.statrow-4 { grid-template-columns: repeat(4, 1fr) !important; }
 
 @media (max-width: 720px) {
-  .stats-strip { grid-template-columns: repeat(2, 1fr); }
-  .stats-strip .stat-dark:nth-child(2) { border-left: 1px solid rgba(255, 255, 255, 0.08); }
-  .stats-strip .stat-dark:nth-child(3) { border-left: none; border-top: 1px solid rgba(255, 255, 255, 0.08); }
-  .stats-strip .stat-dark:nth-child(4) { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+  .statrow.statrow-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .statrow.statrow-4 .stat:nth-child(3) { border-left: none !important; border-top: 1px solid var(--hairline); }
+  .statrow.statrow-4 .stat:nth-child(4) { border-top: 1px solid var(--hairline); }
 }
 
 /* The 1B/$35k/20 statrow moved out of the hero to the bottom of the page —
