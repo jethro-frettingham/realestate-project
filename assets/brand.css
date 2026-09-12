@@ -4166,3 +4166,29 @@ body.has-toc main > .toc { width: 100%; }
   backdrop-filter: blur(26px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.85) !important;
 }
+
+/* Disabled class tiles (live-tier classes, not pickable as a launch's
+   pairing) previously looked identical to clickable ones — same gloss,
+   same hover lift — so clicks silently doing nothing read as a random
+   bug rather than an intentional restriction. Make the state visible. */
+.class-opt:disabled {
+  filter: grayscale(65%) !important;
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+.class-opt:disabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  filter: grayscale(65%) !important;
+}
+.class-opt:disabled::after {
+  content: "Live-priced — not pickable yet";
+  position: absolute;
+  inset: auto 6px 6px 6px;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: #55605a;
+  text-align: center;
+  pointer-events: none;
+}
