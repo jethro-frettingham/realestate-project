@@ -102,10 +102,18 @@ async function loadDeployment() {
   let file = "deployments/testnet.json";
   try {
     if (window.ethereum) {
-      const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
+      // A wallet extension's provider can hang indefinitely (e.g. a stale
+      // MetaMask service-worker connection after it's been idle) rather
+      // than ever rejecting — await-ing it with no timeout would block
+      // every page's data loading forever. Race it against a short
+      // timeout and just fall back to testnet if it doesn't answer.
+      const chainIdHex = await Promise.race([
+        window.ethereum.request({ method: "eth_chainId" }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("wallet timeout")), 1500)),
+      ]);
       if (chainIdHex && chainIdHex.toLowerCase() === RH_MAINNET.chainIdHex) file = "deployments/mainnet.json";
     }
-  } catch (_) { /* no wallet yet, default to testnet */ }
+  } catch (_) { /* no wallet yet, or it didn't answer in time — default to testnet */ }
 
   if (deploymentCacheFile === file && deploymentCache) return deploymentCache;
   try {
