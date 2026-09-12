@@ -600,6 +600,23 @@ async function fetchRewardsStats() {
   return { paidToHoldersEthEquiv, ethSpentOnBuybacks, castleBurned };
 }
 
+/** Pulls a market's accrued LP fees out of its two Uniswap v4 positions
+ *  and routes them 40% holders / 30% buyback / 30% protocol. Permissionless
+ *  — anyone holding no stake in the market can call this for anyone else's
+ *  benefit, there's no keeper and no restriction on who triggers it. */
+async function collectFeesOnMarket(launchId) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
+  const deployment = await loadDeployment();
+  if (!deployment) throw new Error("No live deployment found yet.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, signer);
+  const tx = await launchpad.collectFees(launchId);
+  const receipt = await tx.wait();
+  return { txHash: receipt.hash };
+}
+
 /** Buy into an existing market with ETH, through LaunchRouter. Works
  *  identically whether the price is inside the curve range or the
  *  reserve range above the cap. */
@@ -896,5 +913,5 @@ window.Parcel = {
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin, fetchPropertyCoinFullState, fetchPropertyCoinActivity,
   fetchAllLaunches, fetchLaunchById, decodeMetadata, escapeHtml, resizeImageToDataUri, priceFromSqrtPriceX96, curveProgressPct,
   fetchMarketState, fetchRecentTrades, fetchMarketVolumeEth, buyOnMarket, buyOnMarketWithCoin, sellOnMarket,
-  fetchEarnedRewards, claimMarketRewards, fetchRewardsStats,
+  fetchEarnedRewards, claimMarketRewards, fetchRewardsStats, collectFeesOnMarket,
 };

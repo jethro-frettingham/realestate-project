@@ -78,6 +78,10 @@
           <h3>Trade</h3>
           <div class="sub" id="mk-migrated-note" style="display:none;">Price has crossed the cap into the reserve range. Trading here works exactly the same — there's no migration, no cliff.</div>
           <div class="sub" id="mk-rewards" style="display:none;"></div>
+          <div class="sub" style="margin-top:10px; margin-bottom:8px;">
+            Trading fees sit in the pool until someone pulls them out — permissionless, no keeper needed.
+            <button type="button" id="mk-collect-fees-btn" class="btn btn-outline" style="display:block; margin-top:8px; padding:6px 12px; font-size:12px;">Collect fees</button>
+          </div>
 
           <div class="fee-picker" style="margin: 14px 0 18px;" id="mk-mode-tabs">
             <button type="button" class="fee-opt" id="mk-buy-tab" aria-pressed="true">Buy</button>
@@ -373,6 +377,23 @@
   }
   document.getElementById("mk-buy-tab").addEventListener("click", () => setMode("buy"));
   document.getElementById("mk-sell-tab").addEventListener("click", () => setMode("sell"));
+
+  document.getElementById("mk-collect-fees-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      setStatus("Confirm in your wallet…");
+      const result = await Parcel.collectFeesOnMarket(launchId);
+      setStatus("Fees collected. View tx: " + txLink(result.txHash));
+      state = await Parcel.fetchMarketState(launchId);
+      refreshRewards();
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || String(err), true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   function updateAmountLabel() {
     if (mode === "sell") {
