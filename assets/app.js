@@ -87,6 +87,42 @@ const PEGPOOL_ABI = [
 ];
 
 /* ---------------------------------------------------------------------- */
+/* Short-TTL read cache — this is a static site with no shared backend,   */
+/* so this can only cut down repeat chain reads within one visitor's own  */
+/* session (re-rendering, navigating between pages, a reward panel's      */
+/* periodic refresh); it does nothing for many different visitors hitting */
+/* the RPC for the first time at the same moment, since each browser tab  */
+/* is an independent JS runtime with its own empty cache. Still cheap and */
+/* worth having: it also dedupes concurrent in-flight calls for the same  */
+/* key within one tab (two widgets both asking for the same data at once  */
+/* share one request instead of firing two).                             */
+/* ---------------------------------------------------------------------- */
+
+const READ_CACHE_TTL_MS = 15000;
+const _readCache = new Map(); // key -> { expires, promise }
+
+function _cachedRead(key, fn) {
+  const hit = _readCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.promise;
+  const promise = fn().catch((err) => {
+    _readCache.delete(key); // never cache a failure
+    throw err;
+  });
+  _readCache.set(key, { expires: Date.now() + READ_CACHE_TTL_MS, promise });
+  return promise;
+}
+
+/** Called after any successful on-chain write (buy, sell, launch, claim,
+ *  collect, buyback, mint, redeem) so the next read reflects it
+ *  immediately instead of serving a pre-transaction snapshot for up to
+ *  READ_CACHE_TTL_MS. Clearing everything (rather than just the affected
+ *  keys) is deliberately simple — the cache is cheap to rebuild and this
+ *  can't miss an invalidation path as new read functions get cached. */
+function _invalidateReadCache() {
+  _readCache.clear();
+}
+
+/* ---------------------------------------------------------------------- */
 /* Deployment loader, reads deployments/{testnet,mainnet}.json            */
 /* ---------------------------------------------------------------------- */
 
@@ -299,6 +335,7 @@ async function submitLaunch({ name, symbol, pairCoinAddress, feeBps, metadataURI
     } catch (_) { /* not our event, ignore */ }
   }
 
+  _invalidateReadCache();
   return { launchId, token, txHash: receipt.hash };
 }
 
@@ -332,11 +369,13 @@ async function mintPropertyCoin(ticker, ethIn) {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, signer);
     const tx = await pool.buy(0n, { value: ethIn });
     const receipt = await tx.wait();
+    _invalidateReadCache();
     return { txHash: receipt.hash };
   }
   const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, signer);
   const tx = await coin.mint(0n, { value: ethIn });
   const receipt = await tx.wait();
+  _invalidateReadCache();
   return { txHash: receipt.hash };
 }
 
@@ -356,11 +395,13 @@ async function redeemPropertyCoin(ticker, coinIn) {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, signer);
     const tx = await pool.sell(coinIn, 0n);
     const receipt = await tx.wait();
+    _invalidateReadCache();
     return { txHash: receipt.hash };
   }
   const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, signer);
   const tx = await coin.redeem(coinIn, 0n);
   const receipt = await tx.wait();
+  _invalidateReadCache();
   return { txHash: receipt.hash };
 }
 
@@ -459,22 +500,27 @@ async function fetchPropertyCoinActivity(ticker, maxResults = 50) {
  *  `launchId` is what identifies the market everywhere in the UI now —
  *  there's no more per-market curve contract address to key off. */
 async function fetchAllLaunches() {
-  const deployment = await loadDeployment();
-  if (!deployment || typeof ethers === "undefined") return [];
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
-  const count = Number(await launchpad.launchCount());
-  const launches = [];
-  for (let i = 0; i < count; i++) {
-    const l = await launchpad.getLaunch(i);
-    launches.push({
-      launchId: i, token: l.token, quoteAsset: l.quoteAsset,
-      propertyClass: l.propertyClass, creator: l.creator, feeBps: Number(l.feeBps),
-      metadataURI: l.metadataURI, createdAt: Number(l.createdAt),
-      tokenIsCurrency1: l.tokenIsCurrency1,
-    });
-  }
-  return launches.reverse(); // newest first
+  return _cachedRead("fetchAllLaunches", async () => {
+    const deployment = await loadDeployment();
+    if (!deployment || typeof ethers === "undefined") return [];
+    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
+    const count = Number(await launchpad.launchCount());
+    // Parallel, not sequential — a for-loop of N awaited round-trips means
+    // page-load time scales with launch count for every visitor; Promise.all
+    // fires them together instead.
+    const launches = await Promise.all(
+      Array.from({ length: count }, (_, i) =>
+        launchpad.getLaunch(i).then((l) => ({
+          launchId: i, token: l.token, quoteAsset: l.quoteAsset,
+          propertyClass: l.propertyClass, creator: l.creator, feeBps: Number(l.feeBps),
+          metadataURI: l.metadataURI, createdAt: Number(l.createdAt),
+          tokenIsCurrency1: l.tokenIsCurrency1,
+        }))
+      )
+    );
+    return launches.reverse(); // newest first
+  });
 }
 
 /** Look up a single launch's on-chain record by id, for pages (like
@@ -548,25 +594,27 @@ function priceFromSqrtPriceX96(sqrtPriceX96, tokenIsCurrency1) {
  *  needs, all view calls. There's no `migrated` flag to check anymore:
  *  the same pool is tradeable before and after the price crosses the cap. */
 async function fetchMarketState(launchId) {
-  const deployment = await loadDeployment();
-  if (!deployment || typeof ethers === "undefined") return null;
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
+  return _cachedRead("fetchMarketState:" + launchId, async () => {
+    const deployment = await loadDeployment();
+    if (!deployment || typeof ethers === "undefined") return null;
+    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
 
-  const l = await launchpad.getLaunch(launchId);
-  const token = new ethers.Contract(l.token, TOKEN_ABI, provider);
-  const [name, symbol, totalSupply, sqrtTick] = await Promise.all([
-    token.name(), token.symbol(), token.totalSupply(), launchpad.getPoolState(launchId),
-  ]);
+    const l = await launchpad.getLaunch(launchId);
+    const token = new ethers.Contract(l.token, TOKEN_ABI, provider);
+    const [name, symbol, totalSupply, sqrtTick] = await Promise.all([
+      token.name(), token.symbol(), token.totalSupply(), launchpad.getPoolState(launchId),
+    ]);
 
-  const quotePerToken = priceFromSqrtPriceX96(sqrtTick.sqrtPriceX96, l.tokenIsCurrency1);
-  const pastCap = l.tokenIsCurrency1 ? sqrtTick.tick < l.capTick : sqrtTick.tick > l.capTick;
+    const quotePerToken = priceFromSqrtPriceX96(sqrtTick.sqrtPriceX96, l.tokenIsCurrency1);
+    const pastCap = l.tokenIsCurrency1 ? sqrtTick.tick < l.capTick : sqrtTick.tick > l.capTick;
 
-  return {
-    tokenAddr: l.token, name, symbol, quoteAsset: l.quoteAsset, propertyClass: l.propertyClass,
-    creator: l.creator, feeBps: Number(l.feeBps), totalSupply, tokenIsCurrency1: l.tokenIsCurrency1,
-    tick: Number(sqrtTick.tick), openTick: Number(l.openTick), capTick: Number(l.capTick), pastCap, quotePerToken,
-  };
+    return {
+      tokenAddr: l.token, name, symbol, quoteAsset: l.quoteAsset, propertyClass: l.propertyClass,
+      creator: l.creator, feeBps: Number(l.feeBps), totalSupply, tokenIsCurrency1: l.tokenIsCurrency1,
+      tick: Number(sqrtTick.tick), openTick: Number(l.openTick), capTick: Number(l.capTick), pastCap, quotePerToken,
+    };
+  });
 }
 
 /** How far the pool's price sits across the 800M-token curve range, 0-100,
@@ -586,25 +634,27 @@ function curveProgressPct(state) {
  *  Launchpad's Trade for the first buy, LaunchRouter's for everything
  *  after) — a trade list, not a price chart (no candles/OHLC here). */
 async function fetchRecentTrades(launchId, maxResults = 50) {
-  const deployment = await loadDeployment();
-  if (!deployment || typeof ethers === "undefined") return [];
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
-  const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, provider);
-  const fromBlock = deployment.deployedBlock || 0;
+  return _cachedRead("fetchRecentTrades:" + launchId + ":" + maxResults, async () => {
+    const deployment = await loadDeployment();
+    if (!deployment || typeof ethers === "undefined") return [];
+    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
+    const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, provider);
+    const fromBlock = deployment.deployedBlock || 0;
 
-  const [fromLaunchpad, fromRouter] = await Promise.all([
-    launchpad.queryFilter(launchpad.filters.Trade(launchId), fromBlock, "latest"),
-    router.queryFilter(router.filters.Trade(launchId), fromBlock, "latest"),
-  ]);
-  const all = [...fromLaunchpad, ...fromRouter].map((e) => ({
-    trader: e.args.trader, isBuy: e.args.isBuy,
-    ethIn: e.args.quoteIn, tokensOut: e.args.tokensOut,
-    ethOut: e.args.quoteOut, tokensIn: e.args.tokensIn,
-    txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index,
-  }));
-  all.sort((a, b) => (a.blockNumber - b.blockNumber) || (a.logIndex - b.logIndex));
-  return all.slice(-maxResults).reverse();
+    const [fromLaunchpad, fromRouter] = await Promise.all([
+      launchpad.queryFilter(launchpad.filters.Trade(launchId), fromBlock, "latest"),
+      router.queryFilter(router.filters.Trade(launchId), fromBlock, "latest"),
+    ]);
+    const all = [...fromLaunchpad, ...fromRouter].map((e) => ({
+      trader: e.args.trader, isBuy: e.args.isBuy,
+      ethIn: e.args.quoteIn, tokensOut: e.args.tokensOut,
+      ethOut: e.args.quoteOut, tokensIn: e.args.tokensIn,
+      txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index,
+    }));
+    all.sort((a, b) => (a.blockNumber - b.blockNumber) || (a.logIndex - b.logIndex));
+    return all.slice(-maxResults).reverse();
+  });
 }
 
 /** Total quote-asset volume traded on one market, ever, sums every Trade
@@ -629,43 +679,45 @@ async function fetchMarketVolumeEth(launchId) {
  * Returns null if there's no live deployment yet.
  */
 async function fetchRewardsStats() {
-  const deployment = await loadDeployment();
-  if (!deployment || typeof ethers === "undefined") return null;
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const fromBlock = deployment.deployedBlock || 0;
+  return _cachedRead("fetchRewardsStats", async () => {
+    const deployment = await loadDeployment();
+    if (!deployment || typeof ethers === "undefined") return null;
+    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const fromBlock = deployment.deployedBlock || 0;
 
-  const launches = await fetchAllLaunches();
-  let paidToHoldersEthEquiv = 0n;
-  await Promise.all(launches.map(async (l) => {
-    const token = new ethers.Contract(l.token, TOKEN_ABI, provider);
-    let added;
-    try {
-      added = await token.queryFilter(token.filters.RewardAdded(), fromBlock, "latest");
-    } catch (_) {
-      return; // token predates this event, or the RPC hiccuped — skip, don't fail the whole panel
-    }
-    if (added.length === 0) return;
-    const total = added.reduce((sum, e) => sum + e.args.amount, 0n);
-    if (l.quoteAsset === ethers.ZeroAddress) {
-      paidToHoldersEthEquiv += total;
-    } else {
+    const launches = await fetchAllLaunches();
+    let paidToHoldersEthEquiv = 0n;
+    await Promise.all(launches.map(async (l) => {
+      const token = new ethers.Contract(l.token, TOKEN_ABI, provider);
+      let added;
       try {
-        const rate = await readPropertyCoin(l.propertyClass, null); // tier-aware: static or live peg
-        if (rate) paidToHoldersEthEquiv += (total * rate.weiPerUnit) / (10n ** 18n);
-      } catch (_) { /* couldn't resolve a rate for this class — skip its contribution */ }
+        added = await token.queryFilter(token.filters.RewardAdded(), fromBlock, "latest");
+      } catch (_) {
+        return; // token predates this event, or the RPC hiccuped — skip, don't fail the whole panel
+      }
+      if (added.length === 0) return;
+      const total = added.reduce((sum, e) => sum + e.args.amount, 0n);
+      if (l.quoteAsset === ethers.ZeroAddress) {
+        paidToHoldersEthEquiv += total;
+      } else {
+        try {
+          const rate = await readPropertyCoin(l.propertyClass, null); // tier-aware: static or live peg
+          if (rate) paidToHoldersEthEquiv += (total * rate.weiPerUnit) / (10n ** 18n);
+        } catch (_) { /* couldn't resolve a rate for this class — skip its contribution */ }
+      }
+    }));
+
+    let ethSpentOnBuybacks = 0n;
+    let castleBurned = 0n;
+    if (deployment.buyback) {
+      const buyback = new ethers.Contract(deployment.buyback, BUYBACK_ABI, provider);
+      const events = await buyback.queryFilter(buyback.filters.BuybackExecuted(), fromBlock, "latest");
+      ethSpentOnBuybacks = events.reduce((sum, e) => sum + e.args.ethIn, 0n);
+      castleBurned = events.reduce((sum, e) => sum + e.args.tokensBurned, 0n);
     }
-  }));
 
-  let ethSpentOnBuybacks = 0n;
-  let castleBurned = 0n;
-  if (deployment.buyback) {
-    const buyback = new ethers.Contract(deployment.buyback, BUYBACK_ABI, provider);
-    const events = await buyback.queryFilter(buyback.filters.BuybackExecuted(), fromBlock, "latest");
-    ethSpentOnBuybacks = events.reduce((sum, e) => sum + e.args.ethIn, 0n);
-    castleBurned = events.reduce((sum, e) => sum + e.args.tokensBurned, 0n);
-  }
-
-  return { paidToHoldersEthEquiv, ethSpentOnBuybacks, castleBurned };
+    return { paidToHoldersEthEquiv, ethSpentOnBuybacks, castleBurned };
+  });
 }
 
 /** Pulls a market's accrued LP fees out of its two Uniswap v4 positions
@@ -682,6 +734,7 @@ async function collectFeesOnMarket(launchId) {
   const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, signer);
   const tx = await launchpad.collectFees(launchId);
   const receipt = await tx.wait();
+  _invalidateReadCache();
   return { txHash: receipt.hash };
 }
 
@@ -698,6 +751,7 @@ async function executeBuyback() {
   const buyback = new ethers.Contract(deployment.buyback, BUYBACK_ABI, signer);
   const tx = await buyback.executeBuyback();
   const receipt = await tx.wait();
+  _invalidateReadCache();
   return { txHash: receipt.hash };
 }
 
@@ -714,6 +768,7 @@ async function buyOnMarket(launchId, ethIn) {
   const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, signer);
   const tx = await router.buy(launchId, 0n, { value: ethIn });
   const receipt = await tx.wait();
+  _invalidateReadCache();
   return { txHash: receipt.hash };
 }
 
@@ -755,6 +810,7 @@ async function buyOnMarketWithCoin(launchId, coinAddress, coinAmountIn) {
   const buyTx = await router.buy(launchId, 0n, { value: ethOut });
   const buyReceipt = await buyTx.wait();
 
+  _invalidateReadCache();
   return { redeemTxHash: redeemReceipt.hash, buyTxHash: buyReceipt.hash, ethUsed: ethOut };
 }
 
@@ -786,6 +842,7 @@ async function sellOnMarket(launchId, tokenAddress, tokenAmountIn) {
 
   const tx = await router.sell(launchId, tokenAmountIn, 0n);
   const receipt = await tx.wait();
+  _invalidateReadCache();
   return { txHash: receipt.hash };
 }
 
@@ -808,6 +865,7 @@ async function claimMarketRewards(tokenAddress) {
   const token = new ethers.Contract(tokenAddress, TOKEN_ABI, signer);
   const tx = await token.claimRewards();
   const receipt = await tx.wait();
+  _invalidateReadCache();
   return { txHash: receipt.hash };
 }
 
