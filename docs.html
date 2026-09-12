@@ -85,7 +85,8 @@
         You can buy and sell any of these directly on the
         <a href="classes.html" style="color:var(--brass-bright);">classes page</a>, independent of
         launching anything — though only static-tier classes can currently be picked as a launch's
-        pairing (see "What this repo doesn't do yet" below).
+        pairing, since <code>Launchpad</code> expects a fixed-rate <code>mint()</code>/<code>redeem()</code>
+        interface that a PegPool-backed coin doesn't implement.
       </p>
       <p>
         The starting USD reference price for each class was researched, not guessed, averaged
@@ -175,21 +176,6 @@
         market's name, image, and links stay exactly what its creator published,
         including for the joke listings.
       </p>
-    </div>
-  </section>
-
-  <section class="section" id="gaps" style="border-bottom:none;">
-    <div class="wrap">
-      <h2>What this repo doesn't do yet</h2>
-      <p>The contracts are real Uniswap v4 integration, tested against a real (locally-deployed) <code>PoolManager</code> and against the live Robinhood Chain <code>PoolManager</code> itself. Some things are still open:</p>
-      <ul style="color:var(--paper-dim); max-width:64ch;">
-        <li>The 14 live-tier classes (housing, farmland, RVs, and similar) are repriced by an authorized updater calling <code>reposition()</code> when their reference index publishes a new number — that's a manual/scripted action taken periodically, not a fully automated 60-second oracle push, since none of those sources actually publish faster than that.</li>
-        <li>A live-tier class can't yet be picked as a launch's pairing on <code>launch.html</code> — <code>Launchpad</code> expects a fixed-rate <code>mint()</code>/<code>redeem()</code> interface that a PegPool-backed coin doesn't implement. It's still fully tradeable on its own via the classes page.</li>
-        <li>No third-party security audit. The Uniswap v4 settlement plumbing (unlock callbacks, native-currency handling, the zero-liquidity reprice mechanism, fee-per-share reward accounting) is novel code that's been tested against a real <code>PoolManager</code> but not reviewed by anyone but the person who wrote it.</li>
-        <li>The price chart plots implied price per trade in trade sequence, not real timestamps (avoids an RPC call per trade), and it's a simple line, no candles, no OHLC aggregation, no zoom/pan.</li>
-        <li>Launch images are real, resized client-side and embedded directly in the on-chain metadata, but they still aren't pinned to IPFS or any external host, and they're capped small (a few KB) specifically because a launch's metadata is a string in contract calldata, so gas cost scales with its size.</li>
-        <li>Nothing here evaluates whether tokenizing a specific physical property makes the resulting coin a security, a real-estate-adjacent financial product, or something requiring registration in your jurisdiction.</li>
-      </ul>
     </div>
   </section>
 

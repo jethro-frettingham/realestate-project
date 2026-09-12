@@ -236,20 +236,41 @@ cast send <token address> "claimRewards()" \
 
 ## Operating the live-tier PegPools
 
-When a live-tier class's reference index (Redfin/NAR/Census for housing,
-USDA/LandSearch/Purdue for farmland, RV pricing guides, ...) publishes a
-new number, whoever holds `LIVE_TIER_UPDATER`'s key repositions that
-class's pool — replace `<pegpool address>` with the address from
-`deployments/*.json`'s `pegPools` map:
+There is no automated feed for these — none of the underlying sources
+(Redfin/NAR/Census for housing, USDA/LandSearch/Purdue for farmland, RV
+pricing guides, ...) publish faster than monthly, so a live oracle would
+be solving a problem that doesn't exist here. When one of them publishes
+a new number, whoever holds `LIVE_TIER_UPDATER`'s key runs
+`script/RepositionLiveTier.s.sol` by hand:
+
+```bash
+TICKER=HOUS USD_PRICE=445000 ETH_USD=3500 \
+PRIVATE_KEY=$LIVE_TIER_UPDATER_KEY \
+  forge script script/RepositionLiveTier.s.sol \
+  --rpc-url robinhood_mainnet --broadcast
+```
+
+- `TICKER` — one of the 14 live-tier tickers (RV, TRLR, TINY, CTNR, CABN,
+  CNDO, HOUS, DPLX, TOWN, VILA, MANR, FARM, COMM, HIRS). The script looks
+  up that class's PegPool address itself from `deployments/mainnet.json`
+  (or pass `DEPLOYMENT_FILE=deployments/testnet.json` to target testnet
+  instead) — no need to look up or paste a raw contract address.
+- `USD_PRICE` — the new reference price in whole dollars (e.g. `445000`
+  for $445,000), not wei. The script converts it.
+- `ETH_USD` — today's actual ETH/USD price (Coinbase, CoinGecko, whatever
+  you'd normally check). Unlike the property indices, this one genuinely
+  moves by the hour, so it's supplied fresh on every run rather than read
+  back from the deployment file's static `ethUsd` field.
+
+Equivalent raw `cast` command, if you'd rather skip the script (you'll
+need the pegpool address from `deployments/*.json`'s `pegPools` map and
+to do the USD→wei conversion yourself:
+`usdPrice * 1 ether / ethUsd`):
 
 ```bash
 cast send <pegpool address> "reposition(uint256)" <new wei-per-unit> \
   --rpc-url robinhood_testnet --private-key $LIVE_TIER_UPDATER_KEY
 ```
-
-`<new wei-per-unit>` is the new rate in wei of ETH per one whole coin —
-same units `script/DeployCommon.sol` uses to size the initial rate
-(`usdPrice * 1 ether / ETH_USD`).
 
 Separately, **anyone** can call `harvest()` on a PegPool at any time to
 pull ETH out of its ask position and into `ethReserves`, making it
