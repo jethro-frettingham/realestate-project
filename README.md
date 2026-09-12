@@ -151,30 +151,3 @@ submitting a `createLaunch` transaction. `DEPLOY.md` also covers
 deploying this same stack to a pre-production network first, for anyone
 who wants to exercise it before mainnet.
 
-## What this repo doesn't do yet
-
-- **No deployment by default.** Nothing in `/contracts` is deployed,
-  audited, or gas-profiled until you run `DEPLOY.md`'s steps yourself.
-- **No third-party security audit.** The Uniswap v4 settlement plumbing
-  (unlock callbacks, native-currency handling, the zero-liquidity reprice
-  mechanism, fee-per-share reward accounting) is novel code — tested
-  against a real `PoolManager`, but not reviewed by anyone but the person
-  who wrote it.
-- **Live-tier repricing is a manual/scripted action**, not an automated
-  feed — an authorized updater calls `reposition()` when a class's
-  reference index actually publishes a new number (realistically
-  monthly-ish). There's no bot doing this yet, and no bot could usefully
-  run faster than the underlying sources publish anyway.
-- **A live-tier class can't be picked as a launch's pairing yet** — only
-  as its own directly-tradeable coin on `classes.html`. Real USDG should
-  be the actual USDG stablecoin on mainnet, never a stand-in —
-  `DeployMainnet.s.sol` already does this, but re-verify the address
-  before broadcasting.
-- **The price chart uses trade sequence, not real timestamps** — one
-  line, no candles or OHLC aggregation, and no per-trade RPC call to
-  fetch exact block times.
-- **No legal review.** Tokenizing a specific physical property — a
-  named shed, a named villa — may make the resulting token a security,
-  a fractional-ownership instrument, or something else regulated,
-  depending on jurisdiction and on whether the token actually confers
-  any claim on the property.
