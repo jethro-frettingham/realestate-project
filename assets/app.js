@@ -354,13 +354,14 @@ async function fetchPropertyCoinActivity(ticker, maxResults = 50) {
   const venue = classVenue(deployment, ticker);
   if (!venue) return [];
   const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const fromBlock = deployment.deployedBlock || 0;
 
   let all;
   if (venue.tier === "live") {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, provider);
     const [boughts, solds] = await Promise.all([
-      pool.queryFilter(pool.filters.Bought(), 0, "latest"),
-      pool.queryFilter(pool.filters.Sold(), 0, "latest"),
+      pool.queryFilter(pool.filters.Bought(), fromBlock, "latest"),
+      pool.queryFilter(pool.filters.Sold(), fromBlock, "latest"),
     ]);
     all = [
       ...boughts.map((e) => ({ type: "Mint", who: e.args.trader, ethAmount: e.args.ethIn, coinAmount: e.args.coinOut, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
@@ -369,8 +370,8 @@ async function fetchPropertyCoinActivity(ticker, maxResults = 50) {
   } else {
     const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, provider);
     const [mints, redeems] = await Promise.all([
-      coin.queryFilter(coin.filters.Minted(), 0, "latest"),
-      coin.queryFilter(coin.filters.Redeemed(), 0, "latest"),
+      coin.queryFilter(coin.filters.Minted(), fromBlock, "latest"),
+      coin.queryFilter(coin.filters.Redeemed(), fromBlock, "latest"),
     ]);
     all = [
       ...mints.map((e) => ({ type: "Mint", who: e.args.who, ethAmount: e.args.ethIn, coinAmount: e.args.coinOut, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
@@ -522,10 +523,11 @@ async function fetchRecentTrades(launchId, maxResults = 50) {
   const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
   const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
   const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, provider);
+  const fromBlock = deployment.deployedBlock || 0;
 
   const [fromLaunchpad, fromRouter] = await Promise.all([
-    launchpad.queryFilter(launchpad.filters.Trade(launchId), 0, "latest"),
-    router.queryFilter(router.filters.Trade(launchId), 0, "latest"),
+    launchpad.queryFilter(launchpad.filters.Trade(launchId), fromBlock, "latest"),
+    router.queryFilter(router.filters.Trade(launchId), fromBlock, "latest"),
   ]);
   const all = [...fromLaunchpad, ...fromRouter].map((e) => ({
     trader: e.args.trader, isBuy: e.args.isBuy,
@@ -562,6 +564,7 @@ async function fetchRewardsStats() {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined") return null;
   const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const fromBlock = deployment.deployedBlock || 0;
 
   const launches = await fetchAllLaunches();
   let paidToHoldersEthEquiv = 0n;
@@ -569,7 +572,7 @@ async function fetchRewardsStats() {
     const token = new ethers.Contract(l.token, TOKEN_ABI, provider);
     let added;
     try {
-      added = await token.queryFilter(token.filters.RewardAdded(), 0, "latest");
+      added = await token.queryFilter(token.filters.RewardAdded(), fromBlock, "latest");
     } catch (_) {
       return; // token predates this event, or the RPC hiccuped — skip, don't fail the whole panel
     }
@@ -589,7 +592,7 @@ async function fetchRewardsStats() {
   let castleBurned = 0n;
   if (deployment.buyback) {
     const buyback = new ethers.Contract(deployment.buyback, BUYBACK_ABI, provider);
-    const events = await buyback.queryFilter(buyback.filters.BuybackExecuted(), 0, "latest");
+    const events = await buyback.queryFilter(buyback.filters.BuybackExecuted(), fromBlock, "latest");
     ethSpentOnBuybacks = events.reduce((sum, e) => sum + e.args.ethIn, 0n);
     castleBurned = events.reduce((sum, e) => sum + e.args.tokensBurned, 0n);
   }

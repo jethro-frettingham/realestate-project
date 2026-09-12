@@ -68,6 +68,7 @@ abstract contract DeployCommon is Script {
     ];
 
     struct Deployed {
+        uint256 deployedBlock; // the block this whole stack was deployed at
         address deployer;
         address poolManager;
         address feeHook;
@@ -102,6 +103,15 @@ abstract contract DeployCommon is Script {
 
         vm.startBroadcast(deployerKey);
 
+        // Captured before anything deploys — the front end uses this as the
+        // starting point for every event log scan (Trade, RewardAdded,
+        // BuybackExecuted, ...) instead of block 0. On a long-lived chain
+        // like mainnet, scanning from genesis means asking the RPC to
+        // search the entire chain history on every page load for events
+        // that can only possibly exist from this block onward — slow at
+        // best, and many providers flatly refuse an eth_getLogs range that
+        // large.
+        out.deployedBlock = block.number;
         out.deployer = deployer;
         out.poolManager = poolManagerAddr;
 
