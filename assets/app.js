@@ -54,6 +54,10 @@ const TOKEN_ABI = [
   "function quoteAsset() view returns (address)",
   "function earned(address) view returns (uint256)",
   "function claimRewards() returns (uint256)",
+  "event RewardAdded(uint256 amount)",
+];
+const BUYBACK_ABI = [
+  "event BuybackExecuted(uint256 ethIn, uint256 tokensBurned)",
 ];
 const PROPERTY_COIN_ABI = [
   "function mint(uint256 minCoinOut) payable returns (uint256 coinOut)",
@@ -533,6 +537,58 @@ async function fetchMarketVolumeEth(launchId) {
   return trades.reduce((sum, t) => sum + (t.isBuy ? t.ethIn : t.ethOut), 0n);
 }
 
+/**
+ * Protocol-wide totals for the homepage rewards panel, read straight from
+ * chain, no indexer:
+ *   - paidToHoldersEthEquiv: every market's RewardAdded events, summed.
+ *     Each market pays holders in its own quote asset (ETH, or a property
+ *     class's coin), so a classed market's total is converted to an
+ *     ETH-equivalent using that class's *current* rate — an estimate for
+ *     classes whose rate has moved since the reward was added, exact for
+ *     ETH-quoted markets and any that haven't repriced.
+ *   - ethSpentOnBuybacks / castleBurned: Buyback's own BuybackExecuted
+ *     events — one contract, one event, exact.
+ * Returns null if there's no live deployment yet.
+ */
+async function fetchRewardsStats() {
+  const deployment = await loadDeployment();
+  if (!deployment || typeof ethers === "undefined") return null;
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+
+  const launches = await fetchAllLaunches();
+  let paidToHoldersEthEquiv = 0n;
+  await Promise.all(launches.map(async (l) => {
+    const token = new ethers.Contract(l.token, TOKEN_ABI, provider);
+    let added;
+    try {
+      added = await token.queryFilter(token.filters.RewardAdded(), 0, "latest");
+    } catch (_) {
+      return; // token predates this event, or the RPC hiccuped — skip, don't fail the whole panel
+    }
+    if (added.length === 0) return;
+    const total = added.reduce((sum, e) => sum + e.args.amount, 0n);
+    if (l.quoteAsset === ethers.ZeroAddress) {
+      paidToHoldersEthEquiv += total;
+    } else {
+      try {
+        const rate = await readPropertyCoin(l.propertyClass, null); // tier-aware: static or live peg
+        if (rate) paidToHoldersEthEquiv += (total * rate.weiPerUnit) / (10n ** 18n);
+      } catch (_) { /* couldn't resolve a rate for this class — skip its contribution */ }
+    }
+  }));
+
+  let ethSpentOnBuybacks = 0n;
+  let castleBurned = 0n;
+  if (deployment.buyback) {
+    const buyback = new ethers.Contract(deployment.buyback, BUYBACK_ABI, provider);
+    const events = await buyback.queryFilter(buyback.filters.BuybackExecuted(), 0, "latest");
+    ethSpentOnBuybacks = events.reduce((sum, e) => sum + e.args.ethIn, 0n);
+    castleBurned = events.reduce((sum, e) => sum + e.args.tokensBurned, 0n);
+  }
+
+  return { paidToHoldersEthEquiv, ethSpentOnBuybacks, castleBurned };
+}
+
 /** Buy into an existing market with ETH, through LaunchRouter. Works
  *  identically whether the price is inside the curve range or the
  *  reserve range above the cap. */
@@ -829,5 +885,5 @@ window.Parcel = {
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin, fetchPropertyCoinFullState, fetchPropertyCoinActivity,
   fetchAllLaunches, fetchLaunchById, decodeMetadata, escapeHtml, resizeImageToDataUri, priceFromSqrtPriceX96, curveProgressPct,
   fetchMarketState, fetchRecentTrades, fetchMarketVolumeEth, buyOnMarket, buyOnMarketWithCoin, sellOnMarket,
-  fetchEarnedRewards, claimMarketRewards,
+  fetchEarnedRewards, claimMarketRewards, fetchRewardsStats,
 };

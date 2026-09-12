@@ -94,6 +94,23 @@
     </div>
   </section>
 
+  <section class="section" id="rewards-section">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2>Rewards &amp; buyback</h2>
+          <p>Every trade's fee splits 40% holders / 30% buyback / 30% protocol. Holder rewards are pull-based (nothing pushed automatically); the buyback is permissionless swap-and-burn. Read straight from chain, no indexer.</p>
+        </div>
+      </div>
+      <div class="statrow" id="rewards-statrow">
+        <div class="stat"><b id="stat-paid-holders">—</b><span>paid to holders (ETH-equiv.)</span></div>
+        <div class="stat"><b id="stat-bought-back">—</b><span>spent on buybacks</span></div>
+        <div class="stat"><b id="stat-burned">—</b><span>$CASTLE burned</span></div>
+      </div>
+      <p class="sub" id="rewards-status" style="margin-top:12px;">Checking for a live deployment…</p>
+    </div>
+  </section>
+
   <section class="section">
     <div class="wrap">
       <div class="section-head">
@@ -318,7 +335,34 @@
     return Math.floor(seconds / 86400) + "d ago";
   }
 
+  async function loadRewardsPanel() {
+    const statusEl = document.getElementById("rewards-status");
+    const deployment = await Parcel.loadDeployment();
+    if (!deployment) {
+      statusEl.textContent = "No live deployment found yet.";
+      return;
+    }
+    try {
+      const stats = await Parcel.fetchRewardsStats();
+      if (!stats) { statusEl.textContent = "No live deployment found yet."; return; }
+      const ethUsd = deployment.ethUsd || 0;
+      const paidUsd = Number(ethers.formatEther(stats.paidToHoldersEthEquiv)) * ethUsd;
+      const boughtUsd = Number(ethers.formatEther(stats.ethSpentOnBuybacks)) * ethUsd;
+      const burned = Number(ethers.formatEther(stats.castleBurned));
+      document.getElementById("stat-paid-holders").textContent =
+        "$" + paidUsd.toLocaleString(undefined, { maximumFractionDigits: paidUsd < 10 ? 2 : 0 });
+      document.getElementById("stat-bought-back").textContent =
+        "$" + boughtUsd.toLocaleString(undefined, { maximumFractionDigits: boughtUsd < 10 ? 2 : 0 });
+      document.getElementById("stat-burned").textContent = burned.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      statusEl.style.display = "none";
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "Couldn't load rewards stats: " + (err.message || err);
+    }
+  }
+
   loadMarkets();
+  loadRewardsPanel();
 </script>
 </body>
 </html>
