@@ -62,7 +62,7 @@
             <div class="spec-row"><span class="k">Fixed rate</span><span class="v brass" id="co-rate">-</span></div>
             <div class="spec-row"><span class="k">≈ USD</span><span class="v" id="co-rate-usd">-</span></div>
             <div class="spec-row"><span class="k">Total supply</span><span class="v" id="co-supply">-</span></div>
-            <div class="spec-row"><span class="k">ETH reserves locked</span><span class="v" id="co-reserves">-</span></div>
+            <div class="spec-row"><span class="k" data-reserves-label>ETH reserves locked</span><span class="v" id="co-reserves">-</span></div>
             <div class="spec-row"><span class="k">Reserves value</span><span class="v" id="co-reserves-usd">-</span></div>
           </div>
 
@@ -121,6 +121,7 @@
   const GENERIC_COIN_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.2c0-1.2 1.1-2 2.5-2s2.5.8 2.5 2c0 2.6-5 1.4-5 4 0 1.2 1.1 2 2.5 2s2.5-.8 2.5-2"/></svg>`;
 
   let deployment = null;
+  let ticker = null;
   let coinAddress = null;
   let classEntry = null; // PROPERTY_CLASSES entry, or a synthetic one for USDG
   let state = null; // fetchPropertyCoinFullState result
@@ -155,33 +156,40 @@
       disclosureEl.innerHTML = `<strong>Preview mode.</strong> No live deployment found.`;
       return;
     }
-    disclosureEl.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong> Buying mints by sending ETH; selling redeems back to ETH, both at this coin's fixed rate, no slippage on the rate itself.`;
-
-    const ticker = requestedTicker.toUpperCase();
-    coinAddress = ticker === "USDG" ? deployment.usdg : (deployment.classCoins || {})[ticker];
+    ticker = requestedTicker.toUpperCase();
     classEntry = ticker === "USDG"
       ? { ticker: "USDG", displayName: "USDG", label: "$CASTLE", unit: "1 USDG = $1", tier: "estate", glyph: null }
       : PROPERTY_CLASSES.find((c) => c.ticker === ticker);
 
-    if (!coinAddress || !classEntry) {
-      setStatus("Unknown or undeployed coin: " + Parcel.escapeHtml(ticker), true);
+    if (!classEntry) {
+      setStatus("Unknown class ticker: " + Parcel.escapeHtml(ticker), true);
       return;
     }
 
     document.getElementById("co-icon").innerHTML = classEntry.glyph ? parcelGlyph(classEntry.glyph) : GENERIC_COIN_GLYPH;
     document.getElementById("co-tag").textContent = classEntry.ticker;
     document.getElementById("co-name").textContent = classEntry.displayName;
-    document.getElementById("co-sub").textContent = classEntry.label + " · " + classEntry.unit + ". Fully collateralized: minting only ever issues coin backed by ETH just deposited.";
     document.getElementById("co-amount-label").textContent = "Pay with ETH";
 
     try {
-      state = await Parcel.fetchPropertyCoinFullState(coinAddress);
+      state = await Parcel.fetchPropertyCoinFullState(ticker);
     } catch (err) {
       console.error(err);
       setStatus("Couldn't load this coin. Check the deployment.", true);
       return;
     }
-    if (!state) return;
+    if (!state) {
+      setStatus("Unknown or undeployed coin: " + Parcel.escapeHtml(ticker), true);
+      return;
+    }
+    coinAddress = state.coinAddress;
+
+    document.getElementById("co-sub").textContent = state.tier === "live"
+      ? classEntry.label + " · " + classEntry.unit + ". Rate tracks a real reference index, repriced periodically — not fixed forever like the static classes."
+      : classEntry.label + " · " + classEntry.unit + ". Fully collateralized: minting only ever issues coin backed by ETH just deposited.";
+    disclosureEl.innerHTML = state.tier === "live"
+      ? `<strong style="color:var(--green-ok);">Live on ${Parcel.escapeHtml(deployment.chainName)}.</strong> Buying and selling trade against this class's peg pool, at or near the current reference rate.`
+      : `<strong style="color:var(--green-ok);">Live on ${Parcel.escapeHtml(deployment.chainName)}.</strong> Buying mints by sending ETH; selling redeems back to ETH, both at this coin's fixed rate, no slippage on the rate itself.`;
 
     const rateEth = Number(ethers.formatEther(state.weiPerUnit));
     const rateUsd = rateEth * deployment.ethUsd;
@@ -194,6 +202,7 @@
     document.getElementById("co-supply").textContent = supplyNum.toLocaleString(undefined, { maximumFractionDigits: 2 }) + " " + classEntry.ticker;
     document.getElementById("co-reserves").textContent = reservesEth.toLocaleString(undefined, { maximumFractionDigits: 4 }) + " ETH";
     document.getElementById("co-reserves-usd").textContent = "$" + reservesUsd.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    document.querySelector('[data-reserves-label]').textContent = state.tier === "live" ? "ETH available to sellers" : "ETH reserves locked";
 
     const caTopEl = document.getElementById("co-ca-top");
     const shortCa = coinAddress.slice(0, 10) + "…" + coinAddress.slice(-6);
@@ -213,7 +222,7 @@
     const chartEl = document.getElementById("co-chart");
     let activity;
     try {
-      activity = await Parcel.fetchPropertyCoinActivity(coinAddress, 300);
+      activity = await Parcel.fetchPropertyCoinActivity(ticker, 300);
     } catch (err) {
       console.error(err);
       activityEl.innerHTML = `<div class="spec-row"><span class="k">Couldn't load activity</span></div>`;
@@ -312,14 +321,14 @@
       setStatus("Confirm in your wallet…");
       let result;
       if (mode === "buy") {
-        result = await Parcel.mintPropertyCoin(coinAddress, ethers.parseEther(amt));
+        result = await Parcel.mintPropertyCoin(ticker, ethers.parseEther(amt));
       } else {
-        result = await Parcel.redeemPropertyCoin(coinAddress, ethers.parseEther(amt));
+        result = await Parcel.redeemPropertyCoin(ticker, ethers.parseEther(amt));
       }
       setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + txLink(result.txHash));
       amountEl.value = "";
       updatePreview();
-      state = await Parcel.fetchPropertyCoinFullState(coinAddress);
+      state = await Parcel.fetchPropertyCoinFullState(ticker);
       loadActivityAndChart();
     } catch (err) {
       console.error(err);

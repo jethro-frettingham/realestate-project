@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CASTLE | Documents</title>
-<meta name="description" content="How launches, property-class coins, migration, and fees work on CASTLE.">
+<meta name="description" content="How launches, property-class coins, real Uniswap v4 liquidity, and fees work on CASTLE.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23C4FF9E'/%3E%3Cstop offset='1' stop-color='%237FD84E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cpath fill='%230B140A' d='M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="stylesheet" href="assets/brand.css?v=L205431">
@@ -34,18 +34,18 @@
     <div class="wrap">
       <h1 style="margin-top:16px;" class="doc-title"><svg class="doc-stamp" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="ds" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C4FF9E"/><stop offset="1" stop-color="#7FD84E"/></linearGradient></defs><rect width="32" height="32" rx="6" fill="url(#ds)"/><path fill="#0B140A" d="M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z"/></svg>Documents</h1>
       <p class="lede">
-        CASTLE is a launchpad on Robinhood Chain Testnet. Buying and selling on a curve always happens
-        in plain ETH, connect a wallet, send ETH, get tokens, nothing to approve or mint first.
-        Optionally tethering a launch to a property class doesn't change that; it only changes
-        what migration seeds once the curve sells out.
+        CASTLE is a launchpad on Robinhood Chain. A launch is a real Uniswap v4 pool with real
+        liquidity from the block it's created — nothing migrates, nothing sells out. Buying and
+        selling always looks like connect a wallet, send ETH, get tokens, nothing to approve or
+        mint first, whether or not the market is tethered to a property class.
       </p>
     </div>
   </section>
 
   <section class="section" id="deployment">
     <div class="wrap">
-      <h2>Testnet deployment</h2>
-      <p>Live addresses for the current deployment on Robinhood Chain Testnet (chain ID 46630), read straight from <code>deployments/testnet.json</code>. This updates automatically the next time someone redeploys.</p>
+      <h2>Deployment</h2>
+      <p>Live addresses for the current deployment, read straight from <code>deployments/testnet.json</code> or <code>mainnet.json</code> depending on your connected chain. This updates automatically the next time someone redeploys.</p>
       <div class="spec" id="deployment-panel" style="max-width:640px;">
         <div class="spec-row"><span class="k">Status</span><span class="v" id="dep-status">Checking…</span></div>
       </div>
@@ -57,15 +57,36 @@
       <h2>Property-class coins</h2>
       <p>
         Each of the 20 classes on <a href="classes.html" style="color:var(--brass-bright);">the class list</a>,
-        plus USDG, is a real, deployed <code>PropertyClassCoin</code>, not just a label. Every one
-        works the same way: <code>mint()</code> takes ETH and issues coin at a <strong>fixed,
-        immutable rate</strong> set once at deployment; <code>redeem()</code> burns coin and gives
-        back exactly the ETH that backs it. There's no oracle and nothing updates the rate. It's
-        fully collateralized:
-        minting only ever issues coin backed by ETH just deposited, so the peg can't run short.
+        plus USDG, is a real, deployed coin, not just a label. They split into two tiers:
+      </p>
+      <p>
+        <strong>Static tier</strong> (couch, tent, shed, lean-to, van, shanty — the six with no
+        real market to track): a <code>PropertyClassCoin</code>. <code>mint()</code> takes ETH and
+        issues coin at a <strong>fixed, immutable rate</strong> set once at deployment;
+        <code>redeem()</code> burns coin and gives back exactly the ETH that backs it. There's no
+        oracle and nothing updates the rate. Fully collateralized: minting only ever issues coin
+        backed by ETH just deposited, so the peg can't run short.
+      </p>
+      <p>
+        <strong>Live tier</strong> (the other 14 — RVs, tiny and manufactured homes, container
+        homes, cabins, condos, houses, farmland, luxury homes, commercial retail, and the
+        duplex/townhouse/high-rise figures derived from them): a <code>PegPool</code> instead. A
+        mutable-rate mint/redeem contract would be unsound here — if the reference rate ever rose,
+        redeeming at a flat rate from ETH collected at older, lower rates could leave it short. So
+        these coins are never redeemed at a promised rate at all: each has a single-sided Uniswap
+        v4 position offering protocol-minted coin one tick-range above the reference rate (a real,
+        router-composable ask), and sells pay out of <code>ethReserves</code> — ETH the pool has
+        actually pulled out of that position via a permissionless <code>harvest()</code>, capped
+        exactly there. It can't be shorted because it never promises more than it holds. An
+        authorized updater calls <code>reposition()</code> when the reference index publishes a
+        new number, which is realistically monthly-ish, not a 60-second keeper, since none of
+        these sources publish faster than that.
+      </p>
+      <p>
         You can buy and sell any of these directly on the
         <a href="classes.html" style="color:var(--brass-bright);">classes page</a>, independent of
-        launching anything.
+        launching anything — though only static-tier classes can currently be picked as a launch's
+        pairing (see "What this repo doesn't do yet" below).
       </p>
       <p>
         The starting USD reference price for each class was researched, not guessed, averaged
@@ -76,7 +97,7 @@
         a disclosed 3x multiplier for structures since no source prices "land with structures"
         directly. The six novelty-tier classes (couch, tent, shed, lean-to, van, shanty) have no
         real market to research and stay illustrative. Full source list, per class, is in
-        <code>script/Deploy.s.sol</code>'s comments.
+        <code>script/DeployCommon.sol</code>'s comments.
       </p>
     </div>
   </section>
@@ -84,17 +105,19 @@
   <section class="section">
     <div class="wrap">
       <h2>Launch terms</h2>
-      <p>Every launch follows the same curve, whatever class it's tethered to.</p>
+      <p>Every launch follows the same shape, whatever class it's tethered to.</p>
       <div class="steps">
         <div class="step">
           <div class="num"></div>
           <div>
-            <h3>Mint and open</h3>
-            <p>A launch mints 1,000,000,000 tokens. 800 million sell on a virtual-liquidity
-              curve priced directly in ETH, using fixed virtual reserves (3 ETH / 1,073,000,000
-              tokens) set once in the contract, not derived from any price feed, and identical
-              whether or not a property class is picked. That opens the curve around a 2.8 ETH
-              implied cap. 200 million tokens are reserved for migration.</p>
+            <h3>Mint straight into a real pool</h3>
+            <p>A launch mints 1,000,000,000 tokens directly into a new Uniswap v4 pool, as two
+              concentrated liquidity ranges seeded in the same transaction: 800 million tokens
+              from a $5,000 opening cap to a $35,000 cap (sized in ETH, or the picked class's
+              coin, at deploy time — this is the "curve"), and 200 million tokens in a second
+              range above the cap, so the pool keeps quoting with no cliff once it's crossed.
+              There is no migration step, because there's nothing to migrate to — it's a real
+              pool from block one.</p>
           </div>
         </div>
         <div class="step">
@@ -102,31 +125,20 @@
           <div>
             <h3>Creator sets the fee, picks a class (or not), and buys first</h3>
             <p>The creator picks a trading fee between 1% and 3%, optionally picks a property
-              class to tether the launch to, and sends their first buy, any amount of ETH, in
-              the same transaction that creates the market. No approval step either way: the ETH
-              goes straight into the constructor call.</p>
+              class — the market trades against that class's coin for its whole life instead of
+              ETH — and sends their first buy, any amount of ETH, in the same transaction that
+              creates the market. No approval step either way.</p>
           </div>
         </div>
         <div class="step">
           <div class="num"></div>
           <div>
-            <h3>Trade on the curve</h3>
-            <p>Anyone can buy or sell against the curve while it's open, always in ETH, a
-              picked class never changes this part. If a buy would sell more tokens than the
-              curve has left, it's automatically capped at the remaining supply and the unused
-              ETH is refunded in the same transaction, rather than reverting.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="num"></div>
-          <div>
-            <h3>Migrate into one pool, or two</h3>
-            <p>When the curve sells out: with no class picked, the full 200 million reserved
-              tokens and all raised ETH move into a single TOKEN/ETH pool. With a class picked,
-              it splits down the middle: half stays plain ETH for a TOKEN/ETH pool, and the
-              other half gets minted into the class coin first (at its fixed rate, using real
-              ETH) before seeding a genuinely class-coin-backed TOKEN/&lt;class&gt; pool. Both
-              pools carry the fee the creator chose, and neither is ever withdrawable.</p>
+            <h3>Trade the pool, forever</h3>
+            <p>Anyone can buy or sell against the pool, always starting from ETH on the trader's
+              side — a picked class just means the router mints/burns that class's coin under
+              the hood. Selling works exactly the same whether the price sits inside the curve
+              range or has moved into the reserve range above the cap: it's the same real AMM
+              liquidity throughout, so there's no sellout event and nothing ever stops trading.</p>
           </div>
         </div>
       </div>
@@ -137,19 +149,21 @@
     <div class="wrap">
       <h2>Fees</h2>
       <p>
-        Every fee is split the same way on the curve and in the pool(s) after migration, always
-        in ETH. There's no holder-reward bucket, nothing accrues to a wallet just for holding a
-        token, and there's nothing to claim on that basis:
+        Every trade's LP fee (the rate the creator chose) accrues to the market's own liquidity
+        positions. Anyone can permissionlessly call <code>collectFees()</code> to pull it out and
+        split it, in the market's quote asset (ETH, or the picked class's coin):
       </p>
       <table class="fee-table">
         <thead>
           <tr><th>Recipient</th><th>Share</th><th>Paid in</th><th>How</th></tr>
         </thead>
         <tbody>
-          <tr><td>Creator</td><td>70%</td><td>ETH</td><td>Claimed from the launch's curve contract, any time.</td></tr>
-          <tr><td>CASTLE (protocol)</td><td>30%</td><td>ETH</td><td>Funds the exchange.</td></tr>
+          <tr><td>Holders</td><td>40%</td><td>the market's quote asset</td><td>Pull-based: call <code>claimRewards()</code> on the token any time, no keeper enumerating balances.</td></tr>
+          <tr><td>Buyback</td><td>30%</td><td>ETH</td><td>Swapped for the $CASTLE-equivalent platform token and burned — anyone can trigger it, permissionlessly.</td></tr>
+          <tr><td>CASTLE (protocol)</td><td>30%</td><td>the market's quote asset</td><td>Funds the exchange.</td></tr>
         </tbody>
       </table>
+      <p style="margin-top:12px; color:var(--paper-dim);">There's no creator carve-out — creators earn like any other holder.</p>
     </div>
   </section>
 
@@ -168,13 +182,13 @@
   <section class="section" id="gaps" style="border-bottom:none;">
     <div class="wrap">
       <h2>What this repo doesn't do yet</h2>
-      <p>The contracts can be deployed for real to Robinhood Chain Testnet, and this site picks that up automatically. Even deployed, some things are still simplified:</p>
+      <p>The contracts are real Uniswap v4 integration, tested against a real (locally-deployed) <code>PoolManager</code>, and deployable to testnet or mainnet. Some things are still open:</p>
       <ul style="color:var(--paper-dim); max-width:64ch;">
-        
-        <li>Every property-class coin's rate is fixed once at deploy time and doesn't update on its own. A real deployment would want a live price feed behind each class, and real USDG should just be the actual USDG stablecoin.</li>
-        <li>There's no real Uniswap v4 pool behind migration on testnet. <code>TestnetMigrator</code> just holds whatever it's given (ETH, and a class coin if one was picked) so a sellout doesn't revert. A migrated market has nowhere to trade after sellout until a real AMM integration replaces it. This applies to both pools when a class was picked, not just one.</li>
+        <li>The 14 live-tier classes (housing, farmland, RVs, and similar) are repriced by an authorized updater calling <code>reposition()</code> when their reference index publishes a new number — that's a manual/scripted action taken periodically, not a fully automated 60-second oracle push, since none of those sources actually publish faster than that.</li>
+        <li>A live-tier class can't yet be picked as a launch's pairing on <code>launch.html</code> — <code>Launchpad</code> expects a fixed-rate <code>mint()</code>/<code>redeem()</code> interface that a PegPool-backed coin doesn't implement. It's still fully tradeable on its own via the classes page.</li>
+        <li>No third-party security audit. The Uniswap v4 settlement plumbing (unlock callbacks, native-currency handling, the zero-liquidity reprice mechanism, fee-per-share reward accounting) is novel code that's been tested against a real <code>PoolManager</code> but not reviewed by anyone but the person who wrote it.</li>
         <li>The price chart plots implied price per trade in trade sequence, not real timestamps (avoids an RPC call per trade), and it's a simple line, no candles, no OHLC aggregation, no zoom/pan.</li>
-        <li>Launch images are real now, resized client-side and embedded directly in the on-chain metadata, but they still aren't pinned to IPFS or any external host, and they're capped small (a few KB) specifically because a launch's metadata is a string in contract calldata, so gas cost scales with its size.</li>
+        <li>Launch images are real, resized client-side and embedded directly in the on-chain metadata, but they still aren't pinned to IPFS or any external host, and they're capped small (a few KB) specifically because a launch's metadata is a string in contract calldata, so gas cost scales with its size.</li>
         <li>Nothing here evaluates whether tokenizing a specific physical property makes the resulting coin a security, a real-estate-adjacent financial product, or something requiring registration in your jurisdiction.</li>
       </ul>
     </div>
@@ -204,13 +218,16 @@
       return;
     }
     const row = (k, v, link) => `<div class="spec-row"><span class="k">${k}</span><span class="v brass">${link ? `<a href="${link}" target="_blank" rel="noopener" style="color:inherit;">${v}</a>` : v}</span></div>`;
+    const short = (a) => a.slice(0, 10) + "…" + a.slice(-6);
     const coinCount = d.classCoins ? Object.keys(d.classCoins).length : 0;
     panel.innerHTML =
       row("Status", "Live") +
-      row("Chain ID", "46630 (testnet)") +
-      row("ParcelFactory", d.factory.slice(0, 10) + "…" + d.factory.slice(-6), d.explorer + "/address/" + d.factory) +
-      row("TestnetMigrator", d.migrator.slice(0, 10) + "…" + d.migrator.slice(-6), d.explorer + "/address/" + d.migrator) +
-      row("USDG", d.usdg.slice(0, 10) + "…" + d.usdg.slice(-6), d.explorer + "/address/" + d.usdg) +
+      row("Chain", d.chainName + " (" + d.chainId + ")") +
+      row("Launchpad", short(d.launchpad), d.explorer + "/address/" + d.launchpad) +
+      row("LaunchRouter", short(d.launchRouter), d.explorer + "/address/" + d.launchRouter) +
+      row("Buyback", short(d.buyback), d.explorer + "/address/" + d.buyback) +
+      row("Platform token", short(d.platformToken), d.explorer + "/address/" + d.platformToken) +
+      row("USDG", short(d.usdg), d.explorer + "/address/" + d.usdg) +
       row("Property-class coins deployed", coinCount + " / " + PROPERTY_CLASSES.length) +
       row("Assumed ETH/USD", "$" + d.ethUsd);
   });

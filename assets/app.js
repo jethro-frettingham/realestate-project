@@ -1,53 +1,59 @@
 /**
  * app.js, shared front-end logic for CASTLE.
  *
- * Robinhood Chain Testnet is wired for real: RH_CHAIN below is the
- * network's actual public details, and `loadDeployment()` fetches
- * deployments/testnet.json, written by script/Deploy.s.sol, to learn
- * the live ParcelFactory address. Launches are ETH-native: connect a
- * wallet, send ETH, get tokens. No pair coin, no minting step, nothing to
- * approve before your first buy. Until deployments/testnet.json has a
- * real factory address in it (see DEPLOY.md), the site runs in
- * preview-only mode: everything renders and the bonding-curve math is
- * real, but "Launch" won't submit a transaction.
+ * Every launch is a real Uniswap v4 pool from the block it's created
+ * (Launchpad.sol) — there's no separate curve contract and no migration.
+ * `loadDeployment()` fetches deployments/testnet.json or mainnet.json,
+ * written by script/Deploy.s.sol / DeployMainnet.s.sol, picking the file
+ * that matches the connected wallet's chain (testnet by default). Trading
+ * always looks like "connect wallet, send ETH, get tokens" from the
+ * trader's side, through LaunchRouter — even for a market paired with a
+ * property class, which trades against that class's coin under the hood.
+ * Until a deployment file has a real `launchpad` address in it (see
+ * DEPLOY.md), the site runs in preview-only mode.
  */
 
-const RH_CHAIN = {
+const RH_TESTNET = {
   chainName: "Robinhood Chain Testnet",
   chainIdHex: "0xb626", // 46630
   rpcUrls: ["https://rpc.testnet.chain.robinhood.com"],
   nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
   blockExplorerUrls: ["https://explorer.testnet.chain.robinhood.com"],
 };
+const RH_MAINNET = {
+  chainName: "Robinhood Chain",
+  chainIdHex: "0x1237", // 4663
+  rpcUrls: ["https://rpc.mainnet.chain.robinhood.com"],
+  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  blockExplorerUrls: ["https://robinhoodchain.blockscout.com"],
+};
+const RH_CHAIN = RH_TESTNET; // back-compat default export, see ensureRobinhoodChain()
 
-// Minimal ABI fragments, just what the site calls.
-const FACTORY_ABI = [
-  "function createLaunch(string name_, string symbol_, address pairCoin_, uint16 feeBps, string metadataURI, uint256 minTokensOut) payable returns (uint256 launchId, address curveAddr)",
+// Minimal ABI fragments, just what the site calls. `getLaunch` mirrors
+// Launchpad.Launch exactly — field order matters for the tuple decode.
+const LAUNCHPAD_ABI = [
+  "function createLaunch(string name_, string symbol_, address quoteAsset_, uint16 feeBps, string metadataURI, uint256 minTokensOut) payable returns (uint256 launchId, address token)",
   "function launchCount() view returns (uint256)",
-  "function launches(uint256) view returns (address curve, address token, address pairCoin, string propertyClass, address creator, string metadataURI, uint64 createdAt)",
-  "event LaunchCreated(uint256 indexed launchId, address indexed creator, address curve, address token, address pairCoin, string propertyClass, uint16 feeBps, string metadataURI)",
+  "function getLaunch(uint256) view returns (tuple(address token, address quoteAsset, address creator, uint16 feeBps, string propertyClass, string metadataURI, uint64 createdAt, tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) poolKey, bool tokenIsCurrency1, int24 openTick, int24 capTick, int24 farTick))",
+  "function getPoolState(uint256) view returns (uint160 sqrtPriceX96, int24 tick)",
+  "function collectFees(uint256 launchId)",
+  "event LaunchCreated(uint256 indexed launchId, address indexed creator, address token, address quoteAsset, string propertyClass, uint16 feeBps, string metadataURI)",
+  "event Trade(uint256 indexed launchId, address indexed trader, bool isBuy, uint256 quoteIn, uint256 tokensOut, uint256 quoteOut, uint256 tokensIn)",
 ];
-const CURVE_ABI = [
-  "function buy(uint256 minTokensOut) payable returns (uint256 tokensOut)",
-  "function sell(uint256 tokenAmountIn, uint256 minEthOut) returns (uint256 ethOut)",
-  "function token() view returns (address)",
-  "function pairCoin() view returns (address)",
-  "function propertyClass() view returns (string)",
-  "function creator() view returns (address)",
-  "function feeBps() view returns (uint16)",
-  "function tokensSold() view returns (uint256)",
-  "function migrated() view returns (bool)",
-  "function CURVE_SUPPLY() view returns (uint256)",
-  "function TOTAL_SUPPLY() view returns (uint256)",
-  "function virtualEthReserve() view returns (uint256)",
-  "function virtualTokenReserve() view returns (uint256)",
-  "event Trade(address indexed trader, bool isBuy, uint256 ethIn, uint256 tokensOut, uint256 ethOut, uint256 tokensIn)",
+const ROUTER_ABI = [
+  "function buy(uint256 launchId, uint256 minTokensOut) payable returns (uint256 tokensOut)",
+  "function sell(uint256 launchId, uint256 tokenAmountIn, uint256 minQuoteOut) returns (uint256 quoteOut)",
+  "event Trade(uint256 indexed launchId, address indexed trader, bool isBuy, uint256 quoteIn, uint256 tokensOut, uint256 quoteOut, uint256 tokensIn)",
 ];
 const TOKEN_ABI = [
   "function name() view returns (string)",
   "function symbol() view returns (string)",
   "function balanceOf(address) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
+  "function totalSupply() view returns (uint256)",
+  "function quoteAsset() view returns (address)",
+  "function earned(address) view returns (uint256)",
+  "function claimRewards() returns (uint256)",
 ];
 const PROPERTY_COIN_ABI = [
   "function mint(uint256 minCoinOut) payable returns (uint256 coinOut)",
@@ -62,24 +68,49 @@ const PROPERTY_COIN_ABI = [
   "event Minted(address indexed who, uint256 ethIn, uint256 coinOut)",
   "event Redeemed(address indexed who, uint256 coinIn, uint256 ethOut)",
 ];
+// Live-tier classes (a genuine, if infrequently-published, reference
+// index — housing, farmland, RVs, ...) trade against a PegPool instead of
+// a fixed-rate PropertyClassCoin. See PegPool.sol for why.
+const PEGPOOL_ABI = [
+  "function buy(uint256 minCoinOut) payable returns (uint256 coinOut)",
+  "function sell(uint256 coinIn, uint256 minEthOut) returns (uint256 ethOut)",
+  "function weiPerUnit() view returns (uint256)",
+  "function ethReserves() view returns (uint256)",
+  "function coin() view returns (address)",
+  "event Bought(address indexed trader, uint256 ethIn, uint256 coinOut)",
+  "event Sold(address indexed trader, uint256 coinIn, uint256 ethOut)",
+];
 
 /* ---------------------------------------------------------------------- */
-/* Deployment loader, reads deployments/testnet.json                     */
+/* Deployment loader, reads deployments/{testnet,mainnet}.json            */
 /* ---------------------------------------------------------------------- */
 
 let deploymentCache = null;
+let deploymentCacheFile = null;
 
-/** Fetches deployments/testnet.json once and caches it. Returns null
- *  (rather than throwing) if it's missing or still the unfilled
- *  placeholder, so callers can fall back to preview mode. */
+/** Fetches deployments/testnet.json or mainnet.json once per file and
+ *  caches it. Returns null (rather than throwing) if it's missing or
+ *  still the unfilled placeholder, so callers can fall back to preview
+ *  mode. Picks mainnet.json only if a wallet is connected and reports
+ *  Robinhood Chain mainnet (4663); testnet.json otherwise, since that's
+ *  what's actually live during development. */
 async function loadDeployment() {
-  if (deploymentCache !== undefined && deploymentCache !== null) return deploymentCache;
+  let file = "deployments/testnet.json";
   try {
-    const res = await fetch("deployments/testnet.json", { cache: "no-store" });
+    if (window.ethereum) {
+      const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
+      if (chainIdHex && chainIdHex.toLowerCase() === RH_MAINNET.chainIdHex) file = "deployments/mainnet.json";
+    }
+  } catch (_) { /* no wallet yet, default to testnet */ }
+
+  if (deploymentCacheFile === file && deploymentCache) return deploymentCache;
+  try {
+    const res = await fetch(file, { cache: "no-store" });
     if (!res.ok) return null;
     const json = await res.json();
-    if (!json.factory) return null; // still the placeholder
+    if (!json.launchpad) return null; // still the placeholder
     deploymentCache = json;
+    deploymentCacheFile = file;
     return json;
   } catch (err) {
     console.warn("No deployment found yet, running in preview mode.", err);
@@ -93,24 +124,31 @@ async function loadDeployment() {
 
 let currentAccount = null;
 
-async function ensureRobinhoodTestnet() {
+/** Adds/switches the connected wallet to whichever Robinhood Chain network
+ *  the current deployment (if any) targets — mainnet once a real
+ *  deployments/mainnet.json exists, testnet otherwise. */
+async function ensureRobinhoodChain() {
+  const deployment = await loadDeployment();
+  const chain = deployment && deployment.chainId === 4663 ? RH_MAINNET : RH_TESTNET;
   try {
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: RH_CHAIN.chainIdHex }],
+      params: [{ chainId: chain.chainIdHex }],
     });
   } catch (switchErr) {
     // 4902 = chain not added to the wallet yet
     if (switchErr.code === 4902) {
       await window.ethereum.request({
         method: "wallet_addEthereumChain",
-        params: [RH_CHAIN],
+        params: [chain],
       });
     } else {
       throw switchErr;
     }
   }
 }
+// Back-compat name used by older inline page scripts.
+const ensureRobinhoodTestnet = ensureRobinhoodChain;
 
 async function connectWallet() {
   const btn = document.querySelector("[data-connect]");
@@ -145,13 +183,15 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ---------------------------------------------------------------------- */
 
 /**
- * Submits a launch to the deployed ParcelFactory. Requires ethers v6 to
- * be loaded on the page and a deployment to exist. One transaction,
- * ETH-native, no approval step. `pairCoinAddress` is optional: pass a
- * PropertyClassCoin address to pick a class (migration seeds two pools),
- * or omit/pass null for no class (single ETH pool at migration).
+ * Submits a launch to the deployed Launchpad — one transaction that mints
+ * the full supply straight into a real Uniswap v4 pool (800M curve range +
+ * 200M reserve range) and executes the first buy in the same call. Requires
+ * ethers v6 to be loaded and a deployment to exist. ETH-native, no
+ * approval step. `pairCoinAddress` is optional: pass a PropertyClassCoin
+ * address to pick a class (the market trades against that coin for its
+ * whole life), or omit/pass null for a plain ETH market.
  *
- * @returns {Promise<{launchId: string, curve: string, token: string, txHash: string}>}
+ * @returns {Promise<{launchId: string, token: string, txHash: string}>}
  */
 async function submitLaunch({ name, symbol, pairCoinAddress, feeBps, metadataURI, firstBuyIn }) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
@@ -161,101 +201,170 @@ async function submitLaunch({ name, symbol, pairCoinAddress, feeBps, metadataURI
 
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
-  const factory = new ethers.Contract(deployment.factory, FACTORY_ABI, signer);
+  const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, signer);
 
-  const pairCoin = pairCoinAddress || ethers.ZeroAddress;
-  const tx = await factory.createLaunch(name, symbol, pairCoin, feeBps, metadataURI, 0n, { value: firstBuyIn });
+  const quoteAsset = pairCoinAddress || ethers.ZeroAddress;
+  const tx = await launchpad.createLaunch(name, symbol, quoteAsset, feeBps, metadataURI, 0n, { value: firstBuyIn });
   const receipt = await tx.wait();
 
-  const iface = new ethers.Interface(FACTORY_ABI);
-  let launchId = null, curve = null, token = null;
+  const iface = new ethers.Interface(LAUNCHPAD_ABI);
+  let launchId = null, token = null;
   for (const log of receipt.logs) {
     try {
       const parsed = iface.parseLog(log);
       if (parsed && parsed.name === "LaunchCreated") {
         launchId = parsed.args.launchId.toString();
-        curve = parsed.args.curve;
         token = parsed.args.token;
       }
     } catch (_) { /* not our event, ignore */ }
   }
 
-  return { launchId, curve, token, txHash: receipt.hash };
+  return { launchId, token, txHash: receipt.hash };
 }
 
 /* ---------------------------------------------------------------------- */
-/* Property-class coins, buy/sell against ETH at the fixed rate          */
+/* Property-class coins — static tier (fixed-rate mint/redeem) or         */
+/* live tier (a PegPool's AMM peg) — dispatched by ticker so callers      */
+/* don't need to care which one a given class is.                        */
 /* ---------------------------------------------------------------------- */
 
-/** Mint a property-class coin (or USDG) by sending ETH, at its fixed rate. */
-async function mintPropertyCoin(coinAddress, ethIn) {
+/** Resolves a class ticker to its trading venue. USDG is always
+ *  static-tier. Returns null if the ticker isn't deployed at all. */
+function classVenue(deployment, ticker) {
+  const pegPoolAddress = ticker !== "USDG" && deployment.pegPools ? deployment.pegPools[ticker] : null;
+  if (pegPoolAddress && pegPoolAddress !== ethers.ZeroAddress) return { tier: "live", pegPoolAddress };
+  const coinAddress = ticker === "USDG" ? deployment.usdg : (deployment.classCoins || {})[ticker];
+  return coinAddress ? { tier: "static", coinAddress } : null;
+}
+
+/** Buy a property-class coin (or USDG) by sending ETH — mints at a fixed
+ *  rate (static tier) or swaps against the class's AMM peg (live tier). */
+async function mintPropertyCoin(ticker, ethIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   if (!window.ethereum) throw new Error("No wallet connected.");
+  const deployment = await loadDeployment();
+  if (!deployment) throw new Error("No live deployment found yet.");
+  const venue = classVenue(deployment, ticker);
+  if (!venue) throw new Error("Unknown or undeployed coin: " + ticker);
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
-  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, signer);
+  if (venue.tier === "live") {
+    const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, signer);
+    const tx = await pool.buy(0n, { value: ethIn });
+    const receipt = await tx.wait();
+    return { txHash: receipt.hash };
+  }
+  const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, signer);
   const tx = await coin.mint(0n, { value: ethIn });
   const receipt = await tx.wait();
   return { txHash: receipt.hash };
 }
 
-/** Redeem a property-class coin (or USDG) back to ETH, at its fixed rate. */
-async function redeemPropertyCoin(coinAddress, coinIn) {
+/** Sell a property-class coin (or USDG) back for ETH — redeem at the
+ *  fixed rate (static tier) or against the AMM peg, capped at what it's
+ *  collected (live tier; see PegPool.sol). */
+async function redeemPropertyCoin(ticker, coinIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   if (!window.ethereum) throw new Error("No wallet connected.");
+  const deployment = await loadDeployment();
+  if (!deployment) throw new Error("No live deployment found yet.");
+  const venue = classVenue(deployment, ticker);
+  if (!venue) throw new Error("Unknown or undeployed coin: " + ticker);
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
-  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, signer);
+  if (venue.tier === "live") {
+    const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, signer);
+    const tx = await pool.sell(coinIn, 0n);
+    const receipt = await tx.wait();
+    return { txHash: receipt.hash };
+  }
+  const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, signer);
   const tx = await coin.redeem(coinIn, 0n);
   const receipt = await tx.wait();
   return { txHash: receipt.hash };
 }
 
-/** Read-only: a property coin's fixed rate and (if a wallet is connected)
- *  the caller's balance of it. Uses the public RPC, no wallet required
- *  just to read the rate. */
-async function readPropertyCoin(coinAddress, account) {
+/** Read-only: a class's current rate and (if a wallet is connected) the
+ *  caller's balance of it. Uses the public RPC, no wallet required just
+ *  to read the rate. */
+async function readPropertyCoin(ticker, account) {
   const deployment = await loadDeployment();
-  const provider = typeof ethers !== "undefined" && deployment
-    ? new ethers.JsonRpcProvider(deployment.rpcUrl)
-    : null;
-  if (!provider) return null;
-  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, provider);
+  if (!deployment || typeof ethers === "undefined") return null;
+  const venue = classVenue(deployment, ticker);
+  if (!venue) return null;
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  if (venue.tier === "live") {
+    const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, provider);
+    const [weiPerUnit, coinAddr] = await Promise.all([pool.weiPerUnit(), pool.coin()]);
+    const balance = account ? await new ethers.Contract(coinAddr, PROPERTY_COIN_ABI, provider).balanceOf(account) : 0n;
+    return { weiPerUnit, balance };
+  }
+  const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, provider);
   const weiPerUnit = await coin.weiPerUnit();
   const balance = account ? await coin.balanceOf(account) : 0n;
   return { weiPerUnit, balance };
 }
 
-/** Full live state for one property-class coin's own page: rate, current
- *  supply, and the ETH actually held as reserves (a plain balance check,
- *  the coin is fully collateralized by construction, so this should
- *  always equal supply × rate). */
-async function fetchPropertyCoinFullState(coinAddress) {
+/** Full live state for one class's own page: rate, current supply, and
+ *  the ETH backing it. For a static-tier coin that backing is a plain
+ *  balance check (fully collateralized by construction, so it should
+ *  always equal supply × rate); for a live-tier coin it's `ethReserves`
+ *  — only what's been harvested from the peg's ask so far, not a claim
+ *  the coin makes about being collateralized (it isn't — see PegPool.sol). */
+async function fetchPropertyCoinFullState(ticker) {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined") return null;
+  const venue = classVenue(deployment, ticker);
+  if (!venue) return null;
   const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, provider);
+  if (venue.tier === "live") {
+    const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, provider);
+    const coinAddr = await pool.coin();
+    const coin = new ethers.Contract(coinAddr, PROPERTY_COIN_ABI, provider);
+    const [name, symbol, weiPerUnit, totalSupply, ethReserves] = await Promise.all([
+      coin.name(), coin.symbol(), pool.weiPerUnit(), coin.totalSupply(), pool.ethReserves(),
+    ]);
+    return { name, symbol, weiPerUnit, totalSupply, ethReserves, tier: "live", coinAddress: coinAddr, pegPoolAddress: venue.pegPoolAddress };
+  }
+  const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, provider);
   const [name, symbol, weiPerUnit, totalSupply, ethReserves] = await Promise.all([
-    coin.name(), coin.symbol(), coin.weiPerUnit(), coin.totalSupply(), provider.getBalance(coinAddress),
+    coin.name(), coin.symbol(), coin.weiPerUnit(), coin.totalSupply(), provider.getBalance(venue.coinAddress),
   ]);
-  return { name, symbol, weiPerUnit, totalSupply, ethReserves };
+  return { name, symbol, weiPerUnit, totalSupply, ethReserves, tier: "static", coinAddress: venue.coinAddress };
 }
 
-/** Every Minted/Redeemed event for one property-class coin, newest first,
- *  this coin's equivalent of a market's Trade history. */
-async function fetchPropertyCoinActivity(coinAddress, maxResults = 50) {
+/** Every buy/sell event for one class, newest first — Minted/Redeemed for
+ *  a static-tier coin, Bought/Sold for a live-tier PegPool, normalized
+ *  into the same shape either way. */
+async function fetchPropertyCoinActivity(ticker, maxResults = 50) {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined") return [];
+  const venue = classVenue(deployment, ticker);
+  if (!venue) return [];
   const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, provider);
-  const [mints, redeems] = await Promise.all([
-    coin.queryFilter(coin.filters.Minted(), 0, "latest"),
-    coin.queryFilter(coin.filters.Redeemed(), 0, "latest"),
-  ]);
-  const all = [
-    ...mints.map((e) => ({ type: "Mint", who: e.args.who, ethAmount: e.args.ethIn, coinAmount: e.args.coinOut, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
-    ...redeems.map((e) => ({ type: "Redeem", who: e.args.who, ethAmount: e.args.ethOut, coinAmount: e.args.coinIn, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
-  ];
+
+  let all;
+  if (venue.tier === "live") {
+    const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, provider);
+    const [boughts, solds] = await Promise.all([
+      pool.queryFilter(pool.filters.Bought(), 0, "latest"),
+      pool.queryFilter(pool.filters.Sold(), 0, "latest"),
+    ]);
+    all = [
+      ...boughts.map((e) => ({ type: "Mint", who: e.args.trader, ethAmount: e.args.ethIn, coinAmount: e.args.coinOut, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
+      ...solds.map((e) => ({ type: "Redeem", who: e.args.trader, ethAmount: e.args.ethOut, coinAmount: e.args.coinIn, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
+    ];
+  } else {
+    const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, provider);
+    const [mints, redeems] = await Promise.all([
+      coin.queryFilter(coin.filters.Minted(), 0, "latest"),
+      coin.queryFilter(coin.filters.Redeemed(), 0, "latest"),
+    ]);
+    all = [
+      ...mints.map((e) => ({ type: "Mint", who: e.args.who, ethAmount: e.args.ethIn, coinAmount: e.args.coinOut, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
+      ...redeems.map((e) => ({ type: "Redeem", who: e.args.who, ethAmount: e.args.ethOut, coinAmount: e.args.coinIn, txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index })),
+    ];
+  }
   all.sort((a, b) => (a.blockNumber - b.blockNumber) || (a.logIndex - b.logIndex));
   return all.slice(-maxResults).reverse();
 }
@@ -264,34 +373,35 @@ async function fetchPropertyCoinActivity(coinAddress, maxResults = 50) {
 /* Reading live launches + a single market's state, straight from chain   */
 /* ---------------------------------------------------------------------- */
 
-/** Every launch ever created, read directly from ParcelFactory's on-chain
- *  array, no indexer. Returns [] if nothing's deployed yet. */
+/** Every launch ever created, read directly from Launchpad's on-chain
+ *  array, no indexer. Returns [] if nothing's deployed yet. Each entry's
+ *  `launchId` is what identifies the market everywhere in the UI now —
+ *  there's no more per-market curve contract address to key off. */
 async function fetchAllLaunches() {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined") return [];
   const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const factory = new ethers.Contract(deployment.factory, FACTORY_ABI, provider);
-  const count = Number(await factory.launchCount());
+  const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
+  const count = Number(await launchpad.launchCount());
   const launches = [];
   for (let i = 0; i < count; i++) {
-    const l = await factory.launches(i);
+    const l = await launchpad.getLaunch(i);
     launches.push({
-      curve: l.curve, token: l.token, pairCoin: l.pairCoin,
-      propertyClass: l.propertyClass, creator: l.creator,
+      launchId: i, token: l.token, quoteAsset: l.quoteAsset,
+      propertyClass: l.propertyClass, creator: l.creator, feeBps: Number(l.feeBps),
       metadataURI: l.metadataURI, createdAt: Number(l.createdAt),
+      tokenIsCurrency1: l.tokenIsCurrency1,
     });
   }
   return launches.reverse(); // newest first
 }
 
-/** Look up a single launch's on-chain record by its curve address, for
- *  pages (like market.html) that only have the curve address in the URL
- *  and need the metadataURI (name, links, image) that goes with it.
- *  Scans every launch client-side; fine at today's testnet scale. */
-async function fetchLaunchByCurve(curveAddress) {
+/** Look up a single launch's on-chain record by id, for pages (like
+ *  market.html) that need the metadataURI (name, links, image) that goes
+ *  with it. Scans every launch client-side; fine at today's scale. */
+async function fetchLaunchById(launchId) {
   const launches = await fetchAllLaunches();
-  const target = curveAddress.toLowerCase();
-  return launches.find((l) => l.curve.toLowerCase() === target) || null;
+  return launches.find((l) => String(l.launchId) === String(launchId)) || null;
 }
 
 /** Decodes a launch's metadataURI (a base64 data: URI of JSON) back into
@@ -343,82 +453,116 @@ function resizeImageToDataUri(file, maxDim = 200, quality = 0.72) {
   });
 }
 
-/** Full live state for one market's curve, plus its token's name/symbol,
- *  everything a trading page needs, all view calls. */
-async function fetchCurveState(curveAddress) {
+/** Converts a v4 sqrtPriceX96 + which side the launch token is on into a
+ *  human "quote units per token" price. Display-only (uses Number, not
+ *  exact BigInt math) — fine for showing a price, not for settlement. */
+function priceFromSqrtPriceX96(sqrtPriceX96, tokenIsCurrency1) {
+  const ratio = Number(sqrtPriceX96) / 2 ** 96;
+  const price1over0 = ratio * ratio; // currency1 per currency0
+  return tokenIsCurrency1 ? 1 / price1over0 : price1over0;
+}
+
+/** Full live state for one market: its token's name/symbol, the launch
+ *  record, and the pool's current price — everything a trading page
+ *  needs, all view calls. There's no `migrated` flag to check anymore:
+ *  the same pool is tradeable before and after the price crosses the cap. */
+async function fetchMarketState(launchId) {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined") return null;
   const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const curve = new ethers.Contract(curveAddress, CURVE_ABI, provider);
-  const tokenAddr = await curve.token();
-  const token = new ethers.Contract(tokenAddr, TOKEN_ABI, provider);
+  const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
 
-  const [name, symbol, pairCoin, propertyClass, creator, feeBps, tokensSold, migrated, curveSupply, totalSupply, virtualEth, virtualToken] =
-    await Promise.all([
-      token.name(), token.symbol(), curve.pairCoin(), curve.propertyClass(), curve.creator(),
-      curve.feeBps(), curve.tokensSold(), curve.migrated(), curve.CURVE_SUPPLY(), curve.TOTAL_SUPPLY(),
-      curve.virtualEthReserve(), curve.virtualTokenReserve(),
-    ]);
+  const l = await launchpad.getLaunch(launchId);
+  const token = new ethers.Contract(l.token, TOKEN_ABI, provider);
+  const [name, symbol, totalSupply, sqrtTick] = await Promise.all([
+    token.name(), token.symbol(), token.totalSupply(), launchpad.getPoolState(launchId),
+  ]);
+
+  const quotePerToken = priceFromSqrtPriceX96(sqrtTick.sqrtPriceX96, l.tokenIsCurrency1);
+  const pastCap = l.tokenIsCurrency1 ? sqrtTick.tick < l.capTick : sqrtTick.tick > l.capTick;
 
   return {
-    tokenAddr, name, symbol, pairCoin, propertyClass, creator,
-    feeBps: Number(feeBps), tokensSold, migrated, curveSupply, totalSupply,
-    virtualEth, virtualToken,
+    tokenAddr: l.token, name, symbol, quoteAsset: l.quoteAsset, propertyClass: l.propertyClass,
+    creator: l.creator, feeBps: Number(l.feeBps), totalSupply, tokenIsCurrency1: l.tokenIsCurrency1,
+    tick: Number(sqrtTick.tick), openTick: Number(l.openTick), capTick: Number(l.capTick), pastCap, quotePerToken,
   };
 }
 
-/** Recent Trade events for one curve, straight from chain logs, this is
- *  a trade list, not a price chart (no candles/OHLC aggregation here). */
-async function fetchRecentTrades(curveAddress, maxResults = 50) {
+/** How far the pool's price sits across the 800M-token curve range, 0-100,
+ *  clamped — the closest equivalent to the old "% sold on the curve"
+ *  progress bar now that the curve is real liquidity with no sellout
+ *  event. 100% just means the price has crossed into the reserve range,
+ *  not that the market is done trading — it never is. */
+function curveProgressPct(state) {
+  const { tick, openTick, capTick, tokenIsCurrency1 } = state;
+  const span = tokenIsCurrency1 ? openTick - capTick : capTick - openTick;
+  const progressed = tokenIsCurrency1 ? openTick - tick : tick - openTick;
+  if (span === 0) return 0;
+  return Math.min(100, Math.max(0, (progressed / span) * 100));
+}
+
+/** Recent Trade events for one market, straight from chain logs (the
+ *  Launchpad's Trade for the first buy, LaunchRouter's for everything
+ *  after) — a trade list, not a price chart (no candles/OHLC here). */
+async function fetchRecentTrades(launchId, maxResults = 50) {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined") return [];
   const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const curve = new ethers.Contract(curveAddress, CURVE_ABI, provider);
-  const events = await curve.queryFilter(curve.filters.Trade(), 0, "latest");
-  return events.slice(-maxResults).reverse().map((e) => ({
+  const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
+  const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, provider);
+
+  const [fromLaunchpad, fromRouter] = await Promise.all([
+    launchpad.queryFilter(launchpad.filters.Trade(launchId), 0, "latest"),
+    router.queryFilter(router.filters.Trade(launchId), 0, "latest"),
+  ]);
+  const all = [...fromLaunchpad, ...fromRouter].map((e) => ({
     trader: e.args.trader, isBuy: e.args.isBuy,
-    ethIn: e.args.ethIn, tokensOut: e.args.tokensOut,
-    ethOut: e.args.ethOut, tokensIn: e.args.tokensIn,
-    txHash: e.transactionHash,
+    ethIn: e.args.quoteIn, tokensOut: e.args.tokensOut,
+    ethOut: e.args.quoteOut, tokensIn: e.args.tokensIn,
+    txHash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.index,
   }));
+  all.sort((a, b) => (a.blockNumber - b.blockNumber) || (a.logIndex - b.logIndex));
+  return all.slice(-maxResults).reverse();
 }
 
-/** Total ETH traded on one curve, ever, sums every Trade event's ethIn
- *  (buys) and ethOut (sells). Real, not estimated, but does mean scanning
- *  every log for that curve; fine at today's testnet volumes. */
-async function fetchMarketVolumeEth(curveAddress) {
-  const deployment = await loadDeployment();
-  if (!deployment || typeof ethers === "undefined") return 0n;
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
-  const curve = new ethers.Contract(curveAddress, CURVE_ABI, provider);
-  const events = await curve.queryFilter(curve.filters.Trade(), 0, "latest");
-  return events.reduce((sum, e) => sum + (e.args.isBuy ? e.args.ethIn : e.args.ethOut), 0n);
+/** Total quote-asset volume traded on one market, ever, sums every Trade
+ *  event's quoteIn (buys) and quoteOut (sells). Real, not estimated, but
+ *  does mean scanning every log for that market; fine at today's scale. */
+async function fetchMarketVolumeEth(launchId) {
+  const trades = await fetchRecentTrades(launchId, Number.MAX_SAFE_INTEGER);
+  return trades.reduce((sum, t) => sum + (t.isBuy ? t.ethIn : t.ethOut), 0n);
 }
 
-/** Buy on an existing curve, same shape as a launch's first buy. */
-async function buyOnCurve(curveAddress, ethIn) {
+/** Buy into an existing market with ETH, through LaunchRouter. Works
+ *  identically whether the price is inside the curve range or the
+ *  reserve range above the cap. */
+async function buyOnMarket(launchId, ethIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
+  const deployment = await loadDeployment();
+  if (!deployment) throw new Error("No live deployment found yet.");
   if (!window.ethereum) throw new Error("No wallet connected.");
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
-  const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
-  const tx = await curve.buy(0n, { value: ethIn });
+  const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, signer);
+  const tx = await router.buy(launchId, 0n, { value: ethIn });
   const receipt = await tx.wait();
   return { txHash: receipt.hash };
 }
 
 /**
- * Buy into a curve using USDG or a property class coin instead of ETH
- * directly, pre-migration, same as every other buy. There's no contract
- * path that takes the coin straight in; this chains two real
+ * Buy into a market using USDG or a property class coin instead of ETH
+ * directly — same convenience path the old curve offered. There's no
+ * contract path that takes the coin straight in; this chains two real
  * transactions the coin already supports: redeem the coin for the exact
  * ETH backing it (read back from the coin's own Redeemed event, not
- * estimated), then buy on the curve with that ETH. Two wallet
- * confirmations, not one, that's an honest tradeoff of this being
- * front-end orchestration rather than a single contract call.
+ * estimated), then buy through the router with that ETH. Two wallet
+ * confirmations, not one — an honest tradeoff of front-end orchestration
+ * rather than a single contract call.
  */
-async function buyOnCurveWithCoin(curveAddress, coinAddress, coinAmountIn) {
+async function buyOnMarketWithCoin(launchId, coinAddress, coinAmountIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
+  const deployment = await loadDeployment();
+  if (!deployment) throw new Error("No live deployment found yet.");
   if (!window.ethereum) throw new Error("No wallet connected.");
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
@@ -439,36 +583,62 @@ async function buyOnCurveWithCoin(curveAddress, coinAddress, coinAmountIn) {
   }
   if (ethOut === null) throw new Error("Couldn't confirm the redeem amount, try again.");
 
-  const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
-  const buyTx = await curve.buy(0n, { value: ethOut });
+  const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, signer);
+  const buyTx = await router.buy(launchId, 0n, { value: ethOut });
   const buyReceipt = await buyTx.wait();
 
   return { redeemTxHash: redeemReceipt.hash, buyTxHash: buyReceipt.hash, ethUsed: ethOut };
 }
 
-/** Sell on an existing curve. Needs one approval the first time (the
- *  curve pulls the launch token via transferFrom), then sells. */
-async function sellOnCurve(curveAddress, tokenAddress, tokenAmountIn) {
+/** Sell `tokenAmountIn` of a market's token back for its quote asset
+ *  (ETH, or the property class coin if one was picked — LaunchRouter
+ *  hands the coin itself to the seller, same as CME's own behavior).
+ *  Needs one approval the first time (the router pulls the token via
+ *  transferFrom), then sells. */
+async function sellOnMarket(launchId, tokenAddress, tokenAmountIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
+  const deployment = await loadDeployment();
+  if (!deployment) throw new Error("No live deployment found yet.");
   if (!window.ethereum) throw new Error("No wallet connected.");
   const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
   const account = await signer.getAddress();
   const token = new ethers.Contract(tokenAddress, TOKEN_ABI, signer);
-  const curve = new ethers.Contract(curveAddress, CURVE_ABI, signer);
+  const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, signer);
 
-  // ERC20 allowance isn't in TOKEN_ABI's minimal set, check via a raw call.
   const allowanceIface = new ethers.Interface(["function allowance(address,address) view returns (uint256)"]);
-  const data = allowanceIface.encodeFunctionData("allowance", [account, curveAddress]);
+  const data = allowanceIface.encodeFunctionData("allowance", [account, deployment.launchRouter]);
   const raw = await provider.call({ to: tokenAddress, data });
   const [allowance] = allowanceIface.decodeFunctionResult("allowance", raw);
 
   if (allowance < tokenAmountIn) {
-    const approveTx = await token.approve(curveAddress, tokenAmountIn);
+    const approveTx = await token.approve(deployment.launchRouter, tokenAmountIn);
     await approveTx.wait();
   }
 
-  const tx = await curve.sell(tokenAmountIn, 0n);
+  const tx = await router.sell(launchId, tokenAmountIn, 0n);
+  const receipt = await tx.wait();
+  return { txHash: receipt.hash };
+}
+
+/** A market token holder's currently-unclaimed reward share, and (if a
+ *  wallet is connected) a way to claim it — paid in the market's quote
+ *  asset (ETH, or the class coin), pull-based, no keeper. */
+async function fetchEarnedRewards(tokenAddress, account) {
+  const deployment = await loadDeployment();
+  if (!deployment || typeof ethers === "undefined" || !account) return 0n;
+  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const token = new ethers.Contract(tokenAddress, TOKEN_ABI, provider);
+  return token.earned(account);
+}
+
+async function claimMarketRewards(tokenAddress) {
+  if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
+  if (!window.ethereum) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const token = new ethers.Contract(tokenAddress, TOKEN_ABI, signer);
+  const tx = await token.claimRewards();
   const receipt = await tx.wait();
   return { txHash: receipt.hash };
 }
@@ -608,15 +778,23 @@ function classDisplayName(ticker) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Bonding curve math, mirrors contracts/BondingCurve.sol                */
+/* Curve preview math — an ESTIMATE only, for launch.html's "you'll get   */
+/* about N tokens" preview before a real transaction. The real pricing on */
+/* Launchpad.sol is genuine Uniswap v4 concentrated liquidity across two  */
+/* ranges, not a constant-product virtual curve — replicating that exactly*/
+/* in JS would mean porting v4's full tick-crossing swap math. This keeps */
+/* the same constant-product *shape* the old BondingCurve used, resized so*/
+/* it opens around the new $5,000 cap at a $3,500/ETH reference, which is */
+/* close enough for a pre-transaction estimate. minTokensOut is always 0  */
+/* on-chain either way, so nothing here affects actual slippage safety.  */
 /* ---------------------------------------------------------------------- */
 
 const CURVE = {
   totalSupply: 1_000_000_000,
   curveSupply: 800_000_000,
   reserveSupply: 200_000_000,
-  virtualEthReserve: 3,             // ETH, matches BondingCurve.VIRTUAL_ETH_RESERVE
-  virtualTokenReserve: 1_073_000_000, // matches BondingCurve.VIRTUAL_TOKEN_RESERVE
+  virtualEthReserve: (5_000 / 3_500) * (1_073_000_000 / 1_000_000_000), // ~1.53 ETH, opens near $5,000 at $3,500/ETH
+  virtualTokenReserve: 1_073_000_000,
 };
 
 /** Fixed virtual reserves, straight from the constants above, this is a
@@ -630,8 +808,9 @@ function virtualReserves() {
 }
 
 /** Estimate tokens received for `ethIn` ETH, given `tokensSoldSoFar` have
- *  already sold on the curve. Mirrors BondingCurve.buy's constant-product
- *  math (ignoring the trading fee, which the UI shows separately). */
+ *  already sold on the curve range. A constant-product approximation for
+ *  launch.html's pre-transaction preview only — see the CURVE block
+ *  comment above for why this isn't the real Launchpad.sol math. */
 function quoteBuy(ethIn, tokensSoldSoFar) {
   const { virtualTokens, virtualEth } = virtualReserves();
   const tIn = tokensSoldSoFar;
@@ -646,8 +825,9 @@ function quoteBuy(ethIn, tokensSoldSoFar) {
 
 window.Parcel = {
   parcelGlyph, renderClassTile, classDisplayName, virtualReserves, quoteBuy, CURVE,
-  connectWallet, loadDeployment, submitLaunch, ensureRobinhoodTestnet, RH_CHAIN,
+  connectWallet, loadDeployment, submitLaunch, ensureRobinhoodChain, ensureRobinhoodTestnet, RH_CHAIN, RH_TESTNET, RH_MAINNET,
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin, fetchPropertyCoinFullState, fetchPropertyCoinActivity,
-  fetchAllLaunches, fetchLaunchByCurve, decodeMetadata, escapeHtml, resizeImageToDataUri,
-  fetchCurveState, fetchRecentTrades, fetchMarketVolumeEth, buyOnCurve, buyOnCurveWithCoin, sellOnCurve,
+  fetchAllLaunches, fetchLaunchById, decodeMetadata, escapeHtml, resizeImageToDataUri, priceFromSqrtPriceX96, curveProgressPct,
+  fetchMarketState, fetchRecentTrades, fetchMarketVolumeEth, buyOnMarket, buyOnMarketWithCoin, sellOnMarket,
+  fetchEarnedRewards, claimMarketRewards,
 };

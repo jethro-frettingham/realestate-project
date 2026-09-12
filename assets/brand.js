@@ -386,14 +386,14 @@ document.addEventListener("click", (e) => {
     status: [
       { v: "all", l: "All markets" },
       { v: "new", l: "New pairs" },
-      { v: "migrated", l: "Migrated" },
+      { v: "migrated", l: "Past cap" },
     ],
     sort: [
       { v: "new", l: "Newest first" },
       { v: "mcap", l: "Market cap, high to low" },
       { v: "mcap-asc", l: "Market cap, low to high" },
       { v: "vol", l: "Volume, high to low" },
-      { v: "prog", l: "Closest to migration" },
+      { v: "prog", l: "Closest to cap" },
     ],
   };
 
@@ -447,8 +447,12 @@ document.addEventListener("click", (e) => {
         const badge = el.querySelector("[data-ticker]");
         ok = badge ? badge.dataset.ticker === state.class : false;
       }
-      if (ok && state.status === "migrated") ok = /migrated/i.test(txt);
-      if (ok && state.status === "new") ok = !/migrated/i.test(txt);
+      // "migrated" here really means "price has crossed the market's cap" —
+      // detected via the progress-fill's own class, not by matching display
+      // text, since the card no longer says the literal word "migrated".
+      const pastCap = !!el.querySelector(".market-progress-fill.migrated");
+      if (ok && state.status === "migrated") ok = pastCap;
+      if (ok && state.status === "new") ok = !pastCap;
       el.style.display = ok ? "" : "none";
       if (ok) shown++;
     });
@@ -460,7 +464,7 @@ document.addEventListener("click", (e) => {
         return m ? parseFloat(m[1].replace(/,/g, "")) : 0;
       };
       const pick = state.sort === "vol" ? /Vol\s([\d.]+)/
-                 : state.sort === "prog" ? /([\d.]+)%\sto migration/
+                 : state.sort === "prog" ? /([\d.]+)%\sof curve range/
                  : /\$([\d,]+)/;
       const dir = state.sort === "mcap-asc" ? 1 : -1;
       cards.sort((a, b) => (num(a, pick) - num(b, pick)) * dir)

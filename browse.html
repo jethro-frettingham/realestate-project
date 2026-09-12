@@ -42,7 +42,7 @@
       <div class="section-head">
         <div>
           <h1 style="margin:0 0 6px;">Browse markets</h1>
-          <p>Every launch, read straight from the chain, no indexer, no database. Market cap, migration progress, and volume are all live view calls and log scans, not a database.</p>
+          <p>Every launch, read straight from the chain, no indexer, no database. Market cap, curve progress, and volume are all live view calls and log scans, not a database.</p>
         </div>
         <a class="btn btn-primary" href="launch.html">Launch a coin</a>
       </div>
@@ -119,18 +119,19 @@
       markets = await Promise.all(launches.map(async (l) => {
         const meta = Parcel.decodeMetadata(l.metadataURI);
         const [state, volumeWei] = await Promise.all([
-          Parcel.fetchCurveState(l.curve),
-          Parcel.fetchMarketVolumeEth(l.curve),
+          Parcel.fetchMarketState(l.launchId),
+          Parcel.fetchMarketVolumeEth(l.launchId),
         ]);
-        const spot = Number(ethers.formatEther(state.virtualEth)) / Number(ethers.formatEther(state.virtualToken));
-        const fdvUsd = spot * Number(ethers.formatEther(state.totalSupply)) * deployment.ethUsd;
-        const pct = Number(state.tokensSold * 10000n / state.curveSupply) / 100;
+        const fdvUsd = state.quoteAsset === ethers.ZeroAddress
+          ? state.quotePerToken * Number(ethers.formatEther(state.totalSupply)) * deployment.ethUsd
+          : null;
+        const pct = Parcel.curveProgressPct(state);
         const volumeEth = Number(ethers.formatEther(volumeWei)); // volumeWei is raw wei, convert before display
         return {
-          curve: l.curve, token: l.token, name: meta.name || state.name || "Untitled",
+          launchId: l.launchId, token: l.token, name: meta.name || state.name || "Untitled",
           ticker: state.symbol, propertyClass: state.propertyClass,
           image: meta.image || null,
-          createdAt: l.createdAt, migrated: state.migrated, pct,
+          createdAt: l.createdAt, pastCap: state.pastCap, pct,
           fdvUsd, volumeEth,
         };
       }));
@@ -165,14 +166,16 @@
         ? `<span class="market-badge" data-ticker="${Parcel.escapeHtml(m.propertyClass)}" style="cursor:pointer;" title="View ${Parcel.escapeHtml(Parcel.classDisplayName(m.propertyClass))}">${Parcel.escapeHtml(Parcel.classDisplayName(m.propertyClass))}</span>`
         : `<span class="market-badge no-class">ETH only</span>`;
       const pctClamped = Math.min(100, Math.max(0, m.pct));
-      const fdvText = "$" + m.fdvUsd.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      const fdvText = m.fdvUsd === null
+        ? "—"
+        : "$" + m.fdvUsd.toLocaleString(undefined, { maximumFractionDigits: 0 });
       const volText = m.volumeEth.toLocaleString(undefined, { maximumFractionDigits: 3 }) + " ETH";
-      const status = m.migrated
-        ? `<span class="migrated-text">Migrated</span>`
-        : pctClamped.toFixed(1) + "% to migration";
+      const status = m.pastCap
+        ? `<span class="migrated-text">Past cap</span>`
+        : pctClamped.toFixed(1) + "% of curve range";
       const age = timeAgo(m.createdAt);
 
-      return `<a class="market-card" href="market.html?curve=${m.curve}">
+      return `<a class="market-card" href="market.html?launch=${m.launchId}">
         <div class="market-card-head">
           <div class="market-icon" style="overflow:hidden;">${icon}</div>
           <div class="market-titles">
@@ -185,7 +188,7 @@
         <div class="market-fdv-label">Market cap</div>
         <div class="market-fdv">${fdvText}</div>
         <div class="market-progress-track" style="margin-top:12px;">
-          <div class="market-progress-fill${m.migrated ? " migrated" : ""}" style="width:${m.migrated ? 100 : pctClamped}%;"></div>
+          <div class="market-progress-fill${m.pastCap ? " migrated" : ""}" style="width:${m.pastCap ? 100 : pctClamped}%;"></div>
         </div>
         <div class="market-foot">
           <span>${status} · ${age}</span>

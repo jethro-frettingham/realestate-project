@@ -113,13 +113,15 @@
     const deployment = await Parcel.loadDeployment();
     if (!deployment) return;
     await Promise.all(ALL_TRADEABLE.map(async (c) => {
-      const addr = c.ticker === "USDG" ? deployment.usdg : (deployment.classCoins || {})[c.ticker];
       const el = document.querySelector(`.tile-price[data-price-for="${c.ticker}"]`);
-      if (!addr || !el) return;
+      if (!el) return;
       try {
-        const info = await Parcel.readPropertyCoin(addr, null);
+        const info = await Parcel.readPropertyCoin(c.ticker, null);
+        if (!info) return;
         const usd = Number(ethers.formatEther(info.weiPerUnit)) * deployment.ethUsd;
-        el.textContent = "≈ $" + usd.toLocaleString(undefined, { maximumFractionDigits: usd < 10 ? 2 : 0 }) + " est.";
+        const isLive = c.ticker !== "USDG" && deployment.pegPools && deployment.pegPools[c.ticker] && deployment.pegPools[c.ticker] !== ethers.ZeroAddress;
+        el.textContent = "≈ $" + usd.toLocaleString(undefined, { maximumFractionDigits: usd < 10 ? 2 : 0 }) + " est."
+          + (isLive ? " · repriced periodically" : " · fixed rate");
       } catch (err) {
         console.error(err);
         el.textContent = "";

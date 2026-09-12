@@ -2,104 +2,46 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../contracts/ParcelFactory.sol";
-import "../contracts/TestnetMigrator.sol";
-import "../contracts/PropertyClassCoin.sol";
+import {DeployCommon} from "./DeployCommon.sol";
 
-/// @title Deploy
-/// @notice Deploys the Parcel stack to Robinhood Chain Testnet: a
-///         TestnetMigrator, one PropertyClassCoin per property class (20
-///         total) plus USDG (the same fully-collateralized mint/redeem
-///         mechanism, just pegged to $1 instead of a property price), and
-///         a ParcelFactory. Every peg here is static — fixed at deploy
-///         time, no oracle, no keeper. Writes every address to
-///         deployments/testnet.json, which assets/app.js reads at runtime.
+/// @title Deploy (Robinhood Chain Testnet)
+/// @notice Deploys the full V6-shaped Parcel stack: FeeHook, Launchpad,
+///         LaunchRouter, Buyback, the platform token (bootstrapped as its
+///         own launch), USDG stand-in, and all 20 property-class coins.
+///         Writes every address to deployments/testnet.json.
 ///
 /// Usage (from the repo root, after `forge install` and `cp .env.example
 /// .env` with PRIVATE_KEY filled in):
 ///
-///   forge script script/Deploy.s.sol \
-///     --rpc-url robinhood_testnet \
-///     --broadcast
+///   POOL_MANAGER=0x... forge script script/Deploy.s.sol \
+///     --rpc-url robinhood_testnet --broadcast
 ///
-/// See DEPLOY.md for the full walkthrough, including getting testnet ETH.
-contract Deploy is Script {
-    // Static assumption used only to size starting peg rates in ETH terms —
-    // not a live price, and not read by any contract at runtime. Change
-    // this and redeploy if you want different starting rates.
-    uint256 constant ETH_USD = 3_500 ether;
-
-    // Keep in sync with assets/classes.js.
-    string[20] tickers = [
-        "COUCH", "TENT", "SHED", "LEAN",
-        "VAN", "RV", "TRLR", "TINY", "CTNR",
-        "SHTY", "CABN", "CNDO", "HOUS", "DPLX", "TOWN",
-        "VILA", "MANR", "FARM", "COMM", "HIRS"
-    ];
-    string[20] names = [
-        "Friend's Couch", "Tent Pad", "Tin Shed / Storage Unit", "Lean-to",
-        "Converted Van", "RV / Motorhome", "Single-wide Trailer", "Tiny Home", "Container Home",
-        "Shanty", "Cabin", "Condo Unit", "Single-family House", "Duplex", "Townhouse",
-        "Villa", "Manor Estate", "Farmland", "Commercial Unit", "High-rise Unit"
-    ];
-    // Starting USD reference prices — researched Sept 2026, averaged across
-    // multiple sources per category where a real market exists. Novelty-tier
-    // items (COUCH, TENT, SHED, LEAN, VAN, SHTY) have no real market to
-    // research and stay illustrative — just not suspiciously round anymore.
-    // Full source list and methodology: see docs.html "Property-class coins".
-    //   RV, TINY, TRLR, CTNR, CABN, CNDO, HOUS, FARM, VILA, MANR, COMM —
-    //   averaged from 2–4 independent sources each (RV/motorhome pricing
-    //   guides, tiny-home cost guides, manufactured-home data, container-home
-    //   builders, cabin cost guides, Redfin/NAR/Census/Trading Economics for
-    //   housing, USDA/LandSearch/Purdue for farmland, Realtor.com's Luxury
-    //   Report for VILA/MANR, commercial per-sqft data for COMM).
-    //   DPLX/TOWN/HIRS are derived from HOUS/CNDO with a disclosed multiplier,
-    //   not independently sourced. FARM applies a disclosed 3x multiplier to
-    //   bare land value since no source prices "land with structures".
-    uint256[20] usdPrices = [
-        uint256(53 ether), 215 ether, 4_385 ether, 315 ether,
-        18_750 ether, 86_077 ether, 71_300 ether, 91_667 ether, 50_000 ether,
-        8_150 ether, 150_000 ether, 349_186 ether, 431_378 ether, 733_343 ether, 366_671 ether,
-        1_350_000 ether, 3_700_000 ether, 37_176 ether, 65_000 ether, 401_564 ether
-    ];
-
+/// POOL_MANAGER must be Uniswap v4's PoolManager address on Robinhood
+/// Chain Testnet. This repo does not hardcode a guess for it — look it up
+/// yourself (the testnet explorer, or Uniswap's own deployments docs)
+/// rather than trusting an unverified address here; getting this wrong
+/// means the deploy either reverts harmlessly or, worse, points at
+/// something that isn't actually the real PoolManager.
+///
+/// PLATFORM_FIRST_BUY_WEI (optional, default 0.01 ether) is spent from the
+/// deployer's own funds as the platform token's bootstrap first buy.
+///
+/// LIVE_TIER_UPDATER (optional, defaults to the deployer) is the address
+/// authorized to reposition the 14 live-tier PegPools later. Since that
+/// role is set immutably at each PegPool's construction and `initialize()`
+/// must be called by that same address, this MUST equal PRIVATE_KEY's own
+/// address unless you're broadcasting this script as that other account.
+contract Deploy is Script, DeployCommon {
     function run() external {
-        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address poolManager = vm.envAddress("POOL_MANAGER");
+        uint256 firstBuy = vm.envOr("PLATFORM_FIRST_BUY_WEI", uint256(0.01 ether));
+        address deployer = vm.addr(vm.envUint("PRIVATE_KEY"));
+        address liveTierUpdater = vm.envOr("LIVE_TIER_UPDATER", deployer);
 
-        vm.startBroadcast(deployerKey);
+        Deployed memory d = _deploy(poolManager, firstBuy, deployer, address(0), liveTierUpdater);
 
-        TestnetMigrator migrator = new TestnetMigrator();
-        ParcelFactory factory = new ParcelFactory(deployer, address(migrator));
-
-        PropertyClassCoin usdg = new PropertyClassCoin(
-            "Parcel USDG (testnet)",
-            "USDG",
-            1 ether * 1 ether / ETH_USD // 1 USDG == $1, converted to wei at the static ETH_USD rate
-        );
-
-        address[20] memory coinAddrs;
-        for (uint256 i = 0; i < tickers.length; i++) {
-            uint256 weiPerUnit = usdPrices[i] * 1 ether / ETH_USD;
-            PropertyClassCoin coin = new PropertyClassCoin(
-                string.concat(names[i], " (Parcel)"),
-                tickers[i],
-                weiPerUnit
-            );
-            coinAddrs[i] = address(coin);
-        }
-
-        vm.stopBroadcast();
-
-        string memory classCoins = "{";
-        for (uint256 i = 0; i < tickers.length; i++) {
-            classCoins = string.concat(
-                classCoins,
-                '"', tickers[i], '":"', vm.toString(coinAddrs[i]), '"',
-                i < tickers.length - 1 ? "," : ""
-            );
-        }
-        classCoins = string.concat(classCoins, "}");
+        string memory classCoins = _tickerMapJson(d.classCoins);
+        string memory pegPools = _tickerMapJson(d.pegPools);
 
         string memory json = string.concat(
             "{",
@@ -108,20 +50,50 @@ contract Deploy is Script {
             '"rpcUrl":"https://rpc.testnet.chain.robinhood.com",',
             '"explorer":"https://explorer.testnet.chain.robinhood.com",',
             '"faucet":"https://faucet.testnet.chain.robinhood.com",',
-            '"deployer":"', vm.toString(deployer), '",',
-            '"factory":"', vm.toString(address(factory)), '",',
-            '"migrator":"', vm.toString(address(migrator)), '",',
-            '"usdg":"', vm.toString(address(usdg)), '",',
+            '"deployer":"',
+            vm.toString(d.deployer),
+            '",',
+            '"poolManager":"',
+            vm.toString(d.poolManager),
+            '",',
+            '"feeHook":"',
+            vm.toString(d.feeHook),
+            '",',
+            '"launchpad":"',
+            vm.toString(d.launchpad),
+            '",',
+            '"launchRouter":"',
+            vm.toString(d.launchRouter),
+            '",',
+            '"buyback":"',
+            vm.toString(d.buyback),
+            '",',
+            '"usdg":"',
+            vm.toString(d.usdg),
+            '",',
+            '"platformToken":"',
+            vm.toString(d.platformToken),
+            '",',
+            '"platformLaunchId":',
+            vm.toString(d.platformLaunchId),
+            ",",
             '"ethUsd":3500,',
-            '"deployedAt":', vm.toString(block.timestamp), ',',
-            '"classCoins":', classCoins,
+            '"deployedAt":',
+            vm.toString(block.timestamp),
+            ",",
+            '"classCoins":',
+            classCoins,
+            ",",
+            '"pegPools":',
+            pegPools,
             "}"
         );
         vm.writeJson(json, "deployments/testnet.json");
 
-        console2.log("TestnetMigrator:", address(migrator));
-        console2.log("ParcelFactory:  ", address(factory));
-        console2.log("USDG:           ", address(usdg));
+        console2.log("Launchpad:   ", d.launchpad);
+        console2.log("LaunchRouter:", d.launchRouter);
+        console2.log("Buyback:     ", d.buyback);
+        console2.log("PlatformToken:", d.platformToken);
         console2.log("Wrote deployments/testnet.json");
     }
 }

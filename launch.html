@@ -40,7 +40,7 @@
   <section class="section" style="padding-top:48px; border-bottom:none;">
     <div class="wrap">
       <h1 style="margin-top:16px;" class="doc-title"><svg class="doc-stamp" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="ls" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C4FF9E"/><stop offset="1" stop-color="#7FD84E"/></linearGradient></defs><rect width="32" height="32" rx="6" fill="url(#ls)"/><path fill="#0B140A" d="M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z"/></svg>Launch a coin</h1>
-      <p class="lede">Set the terms once: supply, curve, and migration are fixed by the contract, not by you.</p>
+      <p class="lede">Set the terms once: supply and the curve's shape are fixed by the contract, not by you — real Uniswap v4 liquidity from block one, nothing to migrate later.</p>
 
       <form id="launch-form" class="launch-grid" style="margin-top:36px;">
         <div>
@@ -96,7 +96,7 @@
               <button type="button" class="fee-opt" data-fee="2" aria-pressed="true">2%</button>
               <button type="button" class="fee-opt" data-fee="3">3%</button>
             </div>
-            <p class="hint">Charged on every trade, on the curve and in the pool(s) after migration. You keep 70% of it; 30% funds the exchange. No holder rewards, nothing to claim as a holder.</p>
+            <p class="hint">Charged on every trade, forever — same pool before and after the cap. 40% goes to holders (pull-based, claimRewards()), 30% buys back and burns the platform token, 30% funds the exchange.</p>
           </div>
 
           <div class="field">
@@ -117,9 +117,9 @@
           <div class="spec">
             <div class="spec-row"><span class="k">Paired with</span><span class="v brass" id="ov-pair">-</span></div>
             <div class="spec-row"><span class="k">Supply</span><span class="v">1,000,000,000</span></div>
-            <div class="spec-row"><span class="k">Opens at</span><span class="v">~2.8 ETH implied cap</span></div>
-            <div class="spec-row"><span class="k">Migrates at</span><span class="v">~8.8 ETH raised</span></div>
-            <div class="spec-row"><span class="k">Migration pools</span><span class="v" id="ov-pools">1 (TOKEN/ETH)</span></div>
+            <div class="spec-row"><span class="k">Curve opens at</span><span class="v">$5,000 cap</span></div>
+            <div class="spec-row"><span class="k">Curve range ends at</span><span class="v">$35,000 cap</span></div>
+            <div class="spec-row"><span class="k">Pools</span><span class="v" id="ov-pools">1 (TOKEN/ETH)</span></div>
             <div class="spec-row"><span class="k">Trading fee</span><span class="v" id="ov-fee">2%</span></div>
             <div class="spec-row"><span class="k">First buy</span><span class="v" id="ov-buy">-</span></div>
             <div class="spec-row"><span class="k">You receive</span><span class="v" id="ov-receive">-</span></div>
@@ -182,15 +182,39 @@
     deployment = await Parcel.loadDeployment();
     const disclosure = document.getElementById("mode-disclosure");
 
+    // A launch's quote asset must implement PropertyClassCoin's fixed-rate
+    // mint/redeem interface — a live-tier class's coin is minted/burned
+    // exclusively by its PegPool and doesn't support that, so it can't be
+    // picked as a launch's pairing (it's still tradeable on its own via
+    // classes.html). Disable those options once we know which is which.
+    if (deployment && deployment.pegPools) {
+      picker.querySelectorAll(".class-opt[data-ticker]").forEach((btn) => {
+        const t = btn.dataset.ticker;
+        if (t && deployment.pegPools[t] && deployment.pegPools[t] !== ethers.ZeroAddress) {
+          btn.disabled = true;
+          btn.title = "Live-priced classes trade on their own peg pool and can't be a launch's pairing yet.";
+          if (btn.getAttribute("aria-pressed") === "true") {
+            btn.setAttribute("aria-pressed", "false");
+            picker.querySelector('.class-opt[data-ticker=""]').setAttribute("aria-pressed", "true");
+            selectedClass = null;
+            updateOverview();
+          }
+        }
+      });
+    }
+
     if (deployment) {
-      disclosure.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong>
+      const faucetLine = deployment.faucet
+        ? ` Get ETH from <a href="${deployment.faucet}" target="_blank" rel="noopener" style="color:var(--brass-bright);">the faucet</a> if you need it.`
+        : "";
+      disclosure.innerHTML = `<strong style="color:var(--green-ok);">Live on ${Parcel.escapeHtml(deployment.chainName)}.</strong>
         This submits a real <code>createLaunch</code> transaction to
-        <a href="${deployment.explorer}/address/${deployment.factory}" target="_blank" rel="noopener" style="color:var(--brass-bright);">
-        the deployed ParcelFactory</a>, paid in ETH, nothing to approve or mint first, whether or not you pick a class. Get ETH from
-        <a href="${deployment.faucet}" target="_blank" rel="noopener" style="color:var(--brass-bright);">the faucet</a> if you need it.`;
+        <a href="${deployment.explorer}/address/${deployment.launchpad}" target="_blank" rel="noopener" style="color:var(--brass-bright);">
+        the deployed Launchpad</a> — the full supply goes straight into a real Uniswap v4 pool in the same
+        transaction, paid in ETH, nothing to approve or mint first, whether or not you pick a class.${faucetLine}`;
     } else {
       disclosure.innerHTML = `<strong>Preview mode.</strong> No live deployment found yet at
-        <code>deployments/testnet.json</code>. The terms below are real bonding-curve math, but
+        <code>deployments/testnet.json</code>. The terms below are an estimate of the real curve math, but
         "Launch" won't submit a transaction until the contracts are deployed.`;
     }
   }
@@ -203,11 +227,11 @@
       ovPairEl.textContent = "None";
     }
     document.getElementById("panel-sub").textContent = selectedClass
-      ? selectedClass.label + " · " + selectedClass.unit + ". Migrates into two pools: TOKEN/ETH and TOKEN/" + selectedClass.displayName + "."
-      : "No class picked. Migrates into a single TOKEN/ETH pool.";
+      ? selectedClass.label + " · " + selectedClass.unit + ". The market trades against " + selectedClass.displayName + " for its whole life, not ETH — real Uniswap v4 liquidity from block one, no migration."
+      : "No class picked. Trades against plain ETH — real Uniswap v4 liquidity from block one, no migration.";
     document.getElementById("ov-fee").textContent = selectedFee + "%";
     document.getElementById("ov-pools").textContent = selectedClass
-      ? "2 (TOKEN/ETH + TOKEN/" + selectedClass.displayName + ")"
+      ? "1 (TOKEN/" + selectedClass.displayName + ")"
       : "1 (TOKEN/ETH)";
     recalcReceive();
   }
@@ -328,7 +352,7 @@
         firstBuyIn,
       });
       setStatus("Launched, taking you to your market…");
-      setTimeout(() => { location.href = "market.html?curve=" + result.curve; }, 900);
+      setTimeout(() => { location.href = "market.html?launch=" + result.launchId; }, 900);
     } catch (err) {
       console.error(err);
       setStatus(err.message || String(err), true);

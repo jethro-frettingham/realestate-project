@@ -39,7 +39,7 @@
 <main>
   <section class="section" style="padding-top:48px; border-bottom:none;">
     <div class="wrap" id="no-curve-notice" style="display:none;">
-      <p class="lede">No market specified. Go back to <a href="index.html" style="color:var(--brass-bright);">Markets</a> and pick one, or check <code>?curve=0x...</code> is in the URL.</p>
+      <p class="lede">No market specified. Go back to <a href="index.html" style="color:var(--brass-bright);">Markets</a> and pick one, or check <code>?launch=0</code> is in the URL.</p>
     </div>
 
     <div class="wrap" id="market-wrap" style="display:none;">
@@ -76,7 +76,8 @@
 
         <aside class="panel">
           <h3>Trade</h3>
-          <div class="sub" id="mk-migrated-note" style="display:none;">This market has migrated. The curve no longer trades. See its pool(s) on the explorer.</div>
+          <div class="sub" id="mk-migrated-note" style="display:none;">Price has crossed the cap into the reserve range. Trading here works exactly the same — there's no migration, no cliff.</div>
+          <div class="sub" id="mk-rewards" style="display:none;"></div>
 
           <div class="fee-picker" style="margin: 14px 0 18px;" id="mk-mode-tabs">
             <button type="button" class="fee-opt" id="mk-buy-tab" aria-pressed="true">Buy</button>
@@ -122,10 +123,10 @@
 <script src="assets/app.js"></script>
 <script src="assets/brand.js?v=L205431"></script>
 <script>
-  const curveAddress = new URLSearchParams(location.search).get("curve");
+  const launchId = new URLSearchParams(location.search).get("launch");
   const GENERIC_COIN_GLYPH = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.2c0-1.2 1.1-2 2.5-2s2.5.8 2.5 2c0 2.6-5 1.4-5 4 0 1.2 1.1 2 2.5 2s2.5-.8 2.5-2"/></svg>`;
   let deployment = null;
-  let state = null; // result of fetchCurveState
+  let state = null; // result of fetchMarketState
   let mode = "buy";
   let walletConnected = false;
   let currencyAddresses = {}; // ticker -> coin address, ETH excluded (native)
@@ -155,7 +156,7 @@
   }
 
   async function load() {
-    if (!curveAddress) {
+    if (launchId === null) {
       document.getElementById("no-curve-notice").style.display = "block";
       return;
     }
@@ -167,21 +168,21 @@
       disclosureEl.innerHTML = `<strong>Preview mode.</strong> No live deployment found.`;
       return;
     }
-    disclosureEl.innerHTML = `<strong style="color:var(--green-ok);">Live on Robinhood Chain Testnet.</strong> Buying and selling submit real transactions to this curve.`;
+    disclosureEl.innerHTML = `<strong style="color:var(--green-ok);">Live on ${Parcel.escapeHtml(deployment.chainName)}.</strong> Buying and selling submit real transactions against this market's own Uniswap v4 pool.`;
 
     try {
-      state = await Parcel.fetchCurveState(curveAddress);
+      state = await Parcel.fetchMarketState(launchId);
     } catch (err) {
       console.error(err);
-      setStatus("Couldn't load this market. Check the curve address in the URL.", true);
+      setStatus("Couldn't load this market. Check the launch id in the URL.", true);
       return;
     }
     if (!state) return;
 
     document.getElementById("mk-name").textContent = state.name;
     document.getElementById("mk-sub").textContent = state.propertyClass
-      ? "Tethered to " + Parcel.classDisplayName(state.propertyClass) + ". Migrates into two pools."
-      : "No property class. Migrates into a single ETH pool.";
+      ? "Trades against " + Parcel.classDisplayName(state.propertyClass) + ". Real liquidity from block one — no migration."
+      : "Plain ETH market. Real liquidity from block one — no migration.";
     const pairEl = document.getElementById("mk-pair");
     if (state.propertyClass) {
       pairEl.innerHTML = `<a href="coin.html?coin=${encodeURIComponent(state.propertyClass)}" style="color:inherit;">${Parcel.classDisplayName(state.propertyClass)}</a>`;
@@ -195,7 +196,7 @@
     // property class's glyph, else a generic coin icon.
     const iconEl = document.getElementById("mk-icon");
     try {
-      const launch = await Parcel.fetchLaunchByCurve(curveAddress);
+      const launch = await Parcel.fetchLaunchById(launchId);
       const meta = launch ? Parcel.decodeMetadata(launch.metadataURI) : {};
       if (meta.image) {
         iconEl.innerHTML = `<img src="${meta.image}" alt="" style="width:100%; height:100%; object-fit:cover;">`;
@@ -208,13 +209,13 @@
       iconEl.innerHTML = GENERIC_COIN_GLYPH;
     }
 
-    const pct = Number(state.tokensSold * 10000n / state.curveSupply) / 100;
-    document.getElementById("mk-progress").textContent = state.migrated
-      ? "Migrated, sold out"
-      : pct.toFixed(1) + "% (" + fmtTokens(state.tokensSold) + " / " + fmtTokens(state.curveSupply) + " tokens)";
+    const pct = Parcel.curveProgressPct(state);
+    document.getElementById("mk-progress").textContent = state.pastCap
+      ? "Past the " + Parcel.classDisplayName(state.propertyClass || "ETH") + " cap — trading the reserve range now"
+      : pct.toFixed(1) + "% of the way across the curve range";
 
     const curveLink = document.getElementById("mk-curve-link");
-    curveLink.innerHTML = `<a href="${deployment.explorer}/address/${curveAddress}" target="_blank" rel="noopener" style="color:inherit;">${curveAddress.slice(0,10)}…${curveAddress.slice(-6)}</a>`;
+    curveLink.innerHTML = `<a href="${deployment.explorer}/address/${deployment.launchpad}" target="_blank" rel="noopener" style="color:inherit;">Launchpad #${launchId}</a>`;
 
     const caTopEl = document.getElementById("mk-ca-top");
     const shortCa = state.tokenAddr.slice(0, 10) + "…" + state.tokenAddr.slice(-6);
@@ -226,13 +227,11 @@
       });
     });
 
-    if (state.migrated) {
-      document.getElementById("mk-migrated-note").style.display = "block";
-      document.getElementById("mk-mode-tabs").style.display = "none";
-      document.getElementById("mk-amount").disabled = true;
-      actionBtn.disabled = true;
-      actionBtn.textContent = "Migrated, trading closed here";
-    }
+    // No `migrated` state to check — the same pool is tradeable before and
+    // after the price crosses the cap, so buy/sell always stay enabled.
+    document.getElementById("mk-migrated-note").style.display = state.pastCap ? "block" : "none";
+
+    refreshRewards();
 
     // Populate the "Pay with" currency options: ETH always, plus USDG and
     // the market's own paired class coin (if it has one), both real,
@@ -254,12 +253,44 @@
     loadTradesAndChart();
   }
 
+  /** Shows the connected wallet's unclaimed reward share for this
+   *  market's token (40% of trading fees, paid in the quote asset) and
+   *  wires up the claim button. A no-op section if no wallet is connected
+   *  yet or nothing's accrued. */
+  async function refreshRewards() {
+    const el = document.getElementById("mk-rewards");
+    if (!el || !state) return;
+    if (!walletConnected) { el.style.display = "none"; return; }
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const account = await (await provider.getSigner()).getAddress();
+      const earned = await Parcel.fetchEarnedRewards(state.tokenAddr, account);
+      if (earned === 0n) { el.style.display = "none"; return; }
+      const unit = state.quoteAsset === ethers.ZeroAddress ? "ETH" : Parcel.classDisplayName(state.propertyClass);
+      el.style.display = "block";
+      el.innerHTML = `You've earned ${fmtEth(earned)} ${unit} in holder rewards on this market.
+        <button type="button" id="mk-claim-btn" class="btn btn-outline" style="padding:4px 10px; font-size:12px; margin-left:8px;">Claim</button>`;
+      document.getElementById("mk-claim-btn").addEventListener("click", async () => {
+        try {
+          await Parcel.claimMarketRewards(state.tokenAddr);
+          refreshRewards();
+        } catch (err) {
+          console.error(err);
+          alert(err.message || String(err));
+        }
+      });
+    } catch (err) {
+      console.error(err);
+      el.style.display = "none";
+    }
+  }
+
   async function loadTradesAndChart() {
     const tradesEl = document.getElementById("mk-trades");
     const chartEl = document.getElementById("mk-chart");
     let trades;
     try {
-      trades = await Parcel.fetchRecentTrades(curveAddress, 300); // newest first
+      trades = await Parcel.fetchRecentTrades(launchId, 300); // newest first
     } catch (err) {
       console.error(err);
       tradesEl.innerHTML = `<div class="spec-row"><span class="k">Couldn't load trades</span></div>`;
@@ -357,7 +388,7 @@
   async function currencyRate(ticker) {
     if (ticker === "ETH") return 1n * 10n ** 18n; // 1:1 with itself, in wei-per-unit terms
     if (currencyRates[ticker]) return currencyRates[ticker];
-    const info = await Parcel.readPropertyCoin(currencyAddresses[ticker], null);
+    const info = await Parcel.readPropertyCoin(ticker, null);
     currencyRates[ticker] = info.weiPerUnit;
     return info.weiPerUnit;
   }
@@ -374,12 +405,13 @@
         const rate = await currencyRate(currency); // wei per 1 whole coin
         ethEquivalent = amt * Number(ethers.formatEther(rate));
       }
-      const soldNumber = Number(ethers.formatEther(state.tokensSold));
-      const tokensOut = Parcel.quoteBuy(ethEquivalent, soldNumber);
+      // Spot-price estimate only — the real pool has price impact across
+      // its two liquidity ranges that this doesn't model.
+      const tokensOut = ethEquivalent / state.quotePerToken;
       const via = currency === "ETH" ? "" : " (≈" + ethEquivalent.toLocaleString(undefined, { maximumFractionDigits: 5 }) + " ETH after redeeming)";
-      previewEl.textContent = "≈ " + Math.round(tokensOut).toLocaleString() + " " + state.symbol + " (before fee)" + via;
+      previewEl.textContent = "≈ " + Math.round(tokensOut).toLocaleString() + " " + state.symbol + " (before fee/impact)" + via;
     } else {
-      previewEl.textContent = "Confirm in your wallet to see the exact ETH out. Selling depends on live curve reserves.";
+      previewEl.textContent = "Confirm in your wallet to see the exact amount out. Selling depends on live pool liquidity.";
     }
   }
   amountEl.addEventListener("input", updatePreview);
@@ -389,7 +421,7 @@
       await Parcel.connectWallet();
       return;
     }
-    if (!state || state.migrated) return;
+    if (!state) return;
     const amt = amountEl.value.trim();
     if (!amt || parseFloat(amt) <= 0) { setStatus("Enter an amount.", true); return; }
 
@@ -400,18 +432,20 @@
         const currency = currencyEl.value;
         if (currency === "ETH") {
           setStatus("Confirm in your wallet…");
-          result = await Parcel.buyOnCurve(curveAddress, ethers.parseEther(amt));
+          result = await Parcel.buyOnMarket(launchId, ethers.parseEther(amt));
         } else {
           setStatus("Confirm in your wallet…");
-          result = await Parcel.buyOnCurveWithCoin(curveAddress, currencyAddresses[currency], ethers.parseEther(amt));
+          result = await Parcel.buyOnMarketWithCoin(launchId, currencyAddresses[currency], ethers.parseEther(amt));
           result.txHash = result.buyTxHash; // for the status line below
         }
       } else {
-        result = await Parcel.sellOnCurve(curveAddress, state.tokenAddr, ethers.parseEther(amt));
+        result = await Parcel.sellOnMarket(launchId, state.tokenAddr, ethers.parseEther(amt));
       }
       setStatus((mode === "buy" ? "Bought. " : "Sold. ") + "View tx: " + txLink(result.txHash));
       amountEl.value = "";
-      state = await Parcel.fetchCurveState(curveAddress);
+      state = await Parcel.fetchMarketState(launchId);
+      document.getElementById("mk-migrated-note").style.display = state.pastCap ? "block" : "none";
+      refreshRewards();
       loadTradesAndChart();
     } catch (err) {
       console.error(err);
@@ -424,6 +458,7 @@
   document.addEventListener("parcel:connected", () => {
     walletConnected = true;
     actionBtn.textContent = mode === "buy" ? "Buy" : "Sell";
+    refreshRewards();
   });
 
   load();

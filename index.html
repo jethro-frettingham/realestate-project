@@ -64,7 +64,7 @@
     <div class="wrap">
       <div class="statrow">
         <div class="stat"><b>1B</b><span>supply per launch</span></div>
-        <div class="stat"><b>8.8 ETH</b><span>to graduate</span></div>
+        <div class="stat"><b>$35k</b><span>curve cap, no migration</span></div>
         <div class="stat"><b>20</b><span>property classes</span></div>
       </div>
 
@@ -84,7 +84,7 @@
         <div class="market-filters" id="market-filters">
           <button type="button" class="market-filter" data-filter="all" aria-pressed="true">All <span id="count-all"></span></button>
           <button type="button" class="market-filter" data-filter="new" aria-pressed="false">New pairs <span id="count-new"></span></button>
-          <button type="button" class="market-filter" data-filter="migrated" aria-pressed="false">Migrated <span id="count-migrated"></span></button>
+          <button type="button" class="market-filter" data-filter="migrated" aria-pressed="false">Past cap <span id="count-migrated"></span></button>
         </div>
         <a class="btn btn-outline" href="browse.html">Browse markets</a>
       </div>
@@ -112,22 +112,21 @@
       <div class="section-head">
         <div>
           <h2>How a launch works</h2>
-          <p>Full mechanics, fee math, and the migration step are on the docs page.</p>
+          <p>Full mechanics and fee math are on the docs page.</p>
         </div>
         <a class="btn btn-outline" href="docs.html">Read full docs</a>
       </div>
       <div class="spec">
         <div class="spec-row"><span class="k">Every launch mints</span><span class="v">1,000,000,000 tokens</span></div>
-        <div class="spec-row"><span class="k">Sold on the curve</span><span class="v">800,000,000 (80%)</span></div>
-        <div class="spec-row"><span class="k">Reserved for the pool</span><span class="v">200,000,000 (20%)</span></div>
-        <div class="spec-row"><span class="k">Curve opens at</span><span class="v brass">~2.8 ETH implied cap</span></div>
-        <div class="spec-row"><span class="k">Curve completes at</span><span class="v brass">~8.8 ETH raised</span></div>
+        <div class="spec-row"><span class="k">Curve range</span><span class="v">800,000,000 (80%), $5,000 → $35,000 cap</span></div>
+        <div class="spec-row"><span class="k">Reserve range</span><span class="v">200,000,000 (20%), above the cap</span></div>
+        <div class="spec-row"><span class="k">Liquidity</span><span class="v brass">real Uniswap v4 pool, from block one</span></div>
+        <div class="spec-row"><span class="k">Migration</span><span class="v brass">none — nothing ever sells out</span></div>
         <div class="spec-row"><span class="k">Paid in</span><span class="v">ETH, no minting, no approval</span></div>
         <div class="spec-row"><span class="k">Creator trading fee</span><span class="v">1% to 3%, set at launch</span></div>
-        <div class="spec-row"><span class="k">Fee split</span><span class="v">70% creator / 30% protocol</span></div>
-        <div class="spec-row"><span class="k">Holder rewards</span><span class="v">none, nothing to claim just for holding</span></div>
-        <div class="spec-row"><span class="k">Class picked?</span><span class="v">migrates into 2 pools (TOKEN/ETH + TOKEN/class) instead of 1</span></div>
-        <div class="spec-row"><span class="k">On migration</span><span class="v">moves to Uniswap v4 pool(s), permanently</span></div>
+        <div class="spec-row"><span class="k">Fee split</span><span class="v">40% holders / 30% buyback / 30% protocol</span></div>
+        <div class="spec-row"><span class="k">Holder rewards</span><span class="v">pull-based, call claimRewards() any time</span></div>
+        <div class="spec-row"><span class="k">Class picked?</span><span class="v">trades against that class's coin instead of ETH — same one pool</span></div>
       </div>
     </div>
   </section>
@@ -208,18 +207,21 @@
       markets = await Promise.all(launches.map(async (l) => {
         const meta = Parcel.decodeMetadata(l.metadataURI);
         const [state, volumeWei] = await Promise.all([
-          Parcel.fetchCurveState(l.curve),
-          Parcel.fetchMarketVolumeEth(l.curve),
+          Parcel.fetchMarketState(l.launchId),
+          Parcel.fetchMarketVolumeEth(l.launchId),
         ]);
-        const spot = Number(ethers.formatEther(state.virtualEth)) / Number(ethers.formatEther(state.virtualToken));
-        const fdvUsd = spot * Number(ethers.formatEther(state.totalSupply)) * deployment.ethUsd;
-        const pct = Number(state.tokensSold * 10000n / state.curveSupply) / 100;
+        // FDV in USD only makes sense directly for ETH-quoted markets; a
+        // classed market's price is in its class coin's own units.
+        const fdvUsd = state.quoteAsset === ethers.ZeroAddress
+          ? state.quotePerToken * Number(ethers.formatEther(state.totalSupply)) * deployment.ethUsd
+          : null;
+        const pct = Parcel.curveProgressPct(state);
         const volumeEth = Number(ethers.formatEther(volumeWei)); // volumeWei is raw wei, convert before display
         return {
-          curve: l.curve, token: l.token, name: meta.name || state.name || "Untitled",
+          launchId: l.launchId, token: l.token, name: meta.name || state.name || "Untitled",
           ticker: state.symbol, propertyClass: state.propertyClass,
           image: meta.image || null,
-          createdAt: l.createdAt, migrated: state.migrated, pct,
+          createdAt: l.createdAt, pastCap: state.pastCap, pct,
           fdvUsd, volumeEth,
         };
       }));
@@ -236,12 +238,12 @@
 
     function render() {
       document.getElementById("count-all").textContent = markets.length;
-      document.getElementById("count-new").textContent = markets.filter(m => !m.migrated).length;
-      document.getElementById("count-migrated").textContent = markets.filter(m => m.migrated).length;
+      document.getElementById("count-new").textContent = markets.filter(m => !m.pastCap).length;
+      document.getElementById("count-migrated").textContent = markets.filter(m => m.pastCap).length;
 
       const q = query.trim().toLowerCase();
       const filtered = markets
-        .filter(m => activeFilter === "all" || (activeFilter === "migrated" ? m.migrated : !m.migrated))
+        .filter(m => activeFilter === "all" || (activeFilter === "migrated" ? m.pastCap : !m.pastCap))
         .filter(m => !q || m.name.toLowerCase().includes(q) || m.ticker.toLowerCase().includes(q) || (m.propertyClass || "").toLowerCase().includes(q))
         .sort((a, b) => b.createdAt - a.createdAt);
 
@@ -262,14 +264,16 @@
         ? `<span class="market-badge" data-ticker="${Parcel.escapeHtml(m.propertyClass)}" style="cursor:pointer;" title="View ${Parcel.escapeHtml(Parcel.classDisplayName(m.propertyClass))}">${Parcel.escapeHtml(Parcel.classDisplayName(m.propertyClass))}</span>`
         : `<span class="market-badge no-class">ETH only</span>`;
       const pctClamped = Math.min(100, Math.max(0, m.pct));
-      const fdvText = "$" + m.fdvUsd.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      const fdvText = m.fdvUsd === null
+        ? "—"
+        : "$" + m.fdvUsd.toLocaleString(undefined, { maximumFractionDigits: 0 });
       const volText = m.volumeEth.toLocaleString(undefined, { maximumFractionDigits: 3 }) + " ETH";
-      const status = m.migrated
-        ? `<span class="migrated-text">Migrated</span>`
-        : pctClamped.toFixed(1) + "% to migration";
+      const status = m.pastCap
+        ? `<span class="migrated-text">Past cap</span>`
+        : pctClamped.toFixed(1) + "% of curve range";
       const age = timeAgo(m.createdAt);
 
-      return `<a class="market-card" href="market.html?curve=${m.curve}">
+      return `<a class="market-card" href="market.html?launch=${m.launchId}">
         <div class="market-card-head">
           <div class="market-icon" style="overflow:hidden;">${icon}</div>
           <div class="market-titles">
@@ -282,7 +286,7 @@
         <div class="market-fdv-label">Market cap</div>
         <div class="market-fdv">${fdvText}</div>
         <div class="market-progress-track" style="margin-top:12px;">
-          <div class="market-progress-fill${m.migrated ? " migrated" : ""}" style="width:${m.migrated ? 100 : pctClamped}%;"></div>
+          <div class="market-progress-fill${m.pastCap ? " migrated" : ""}" style="width:${m.pastCap ? 100 : pctClamped}%;"></div>
         </div>
         <div class="market-foot">
           <span>${status} · ${age}</span>
