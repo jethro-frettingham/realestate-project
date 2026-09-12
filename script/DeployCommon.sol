@@ -137,13 +137,12 @@ abstract contract DeployCommon is Script {
         for (uint256 i = 0; i < tickers.length; i++) {
             uint256 weiPerUnit = usdPrices[i] * 1 ether / ETH_USD;
             if (isLiveTier[i]) {
-                PegPool pegPool = new PegPool(poolManager, liveTierUpdater, string.concat(names[i], " (Parcel)"), tickers[i]);
+                PegPool pegPool = new PegPool(poolManager, liveTierUpdater, names[i], tickers[i]);
                 pegPool.initialize(weiPerUnit);
                 out.pegPools[i] = address(pegPool);
                 out.classCoins[i] = address(pegPool.coin());
             } else {
-                PropertyClassCoin coin =
-                    new PropertyClassCoin(string.concat(names[i], " (Parcel)"), tickers[i], weiPerUnit);
+                PropertyClassCoin coin = new PropertyClassCoin(names[i], tickers[i], weiPerUnit);
                 out.classCoins[i] = address(coin);
             }
         }
