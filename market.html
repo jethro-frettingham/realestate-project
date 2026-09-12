@@ -119,7 +119,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="assets/classes.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/app.js?v=L205433"></script>
 <script src="assets/brand.js?v=L205431"></script>
 <script>
   const launchId = new URLSearchParams(location.search).get("launch");
@@ -155,7 +155,7 @@
   }
 
   async function load() {
-    if (launchId === null) {
+    if (launchId === null || !/^\d+$/.test(launchId)) {
       document.getElementById("no-curve-notice").style.display = "block";
       return;
     }

@@ -149,7 +149,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="assets/classes.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/app.js?v=L205433"></script>
 <script src="assets/brand.js?v=L205431"></script>
 <script>
   const picker = document.getElementById("class-picker");
@@ -350,6 +350,10 @@
         metadataURI: buildMetadataURI(),
         firstBuyIn,
       });
+      if (result.launchId === null) {
+        setStatus("Launched (tx " + result.txHash + "), but couldn't read back the new launch id. Check the transaction on the explorer, then find your market from Browse markets.", true);
+        return;
+      }
       setStatus("Launched, taking you to your market…");
       setTimeout(() => { location.href = "market.html?launch=" + result.launchId; }, 900);
     } catch (err) {
