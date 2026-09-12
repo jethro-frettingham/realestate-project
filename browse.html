@@ -168,7 +168,8 @@
       const fdvText = m.fdvUsd === null
         ? "—"
         : "$" + m.fdvUsd.toLocaleString(undefined, { maximumFractionDigits: 0 });
-      const volText = m.volumeEth.toLocaleString(undefined, { maximumFractionDigits: 3 }) + " ETH";
+      const volSymbol = m.propertyClass ? Parcel.classDisplayName(m.propertyClass) : "ETH";
+      const volText = m.volumeEth.toLocaleString(undefined, { maximumFractionDigits: 3 }) + " " + volSymbol;
       const status = m.pastCap
         ? `<span class="migrated-text">Past cap</span>`
         : pctClamped.toFixed(1) + "% of curve range";

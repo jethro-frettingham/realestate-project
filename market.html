@@ -303,13 +303,14 @@
       return;
     }
 
+    const quoteSymbol = state.quoteAsset === ethers.ZeroAddress ? "ETH" : Parcel.classDisplayName(state.propertyClass);
     tradesEl.innerHTML = trades.slice(0, 30).map((t) => {
       const side = t.isBuy ? "Buy" : "Sell";
       const ethAmt = t.isBuy ? t.ethIn : t.ethOut;
       const tokenAmt = t.isBuy ? t.tokensOut : t.tokensIn;
       return `<div class="spec-row">
         <span class="k">${side} · ${t.trader.slice(0,6)}…${t.trader.slice(-4)}</span>
-        <span class="v"><a href="${deployment.explorer}/tx/${t.txHash}" target="_blank" rel="noopener" style="color:inherit;">${fmtEth(ethAmt)} ETH → ${fmtTokens(tokenAmt)}</a></span>
+        <span class="v"><a href="${deployment.explorer}/tx/${t.txHash}" target="_blank" rel="noopener" style="color:inherit;">${fmtEth(ethAmt)} ${quoteSymbol} → ${fmtTokens(tokenAmt)}</a></span>
       </div>`;
     }).join("");
 
