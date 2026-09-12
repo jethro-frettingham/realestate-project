@@ -256,8 +256,149 @@ async function _handleConnectButtonClick(e) {
   if (e.currentTarget.dataset.connected === "true") {
     await disconnectWallet();
   } else {
-    await connectWallet();
+    _toggleWalletPicker(e.currentTarget);
   }
+}
+
+/** Sniffs the injected provider(s) for the handful of wallet flags that
+ *  matter here. Rabby also sets isMetaMask=true for compatibility, so it's
+ *  checked first and excluded from the MetaMask match. Robinhood Wallet's
+ *  flag is a best guess (no official docs found) — worst case it just shows
+ *  as "Not detected" instead of breaking anything. */
+function _detectWalletFlags() {
+  const eth = window.ethereum;
+  const providers = (eth && eth.providers) || (eth ? [eth] : []);
+  const has = (flag) => providers.some((p) => p && p[flag]);
+  return {
+    rabby: has("isRabby"),
+    metamask: has("isMetaMask") && !has("isRabby"),
+    robinhood: has("isRobinhoodWallet") || has("isRobinhood"),
+  };
+}
+
+let _walletPickerEl = null;
+
+function _closeWalletPicker() {
+  if (_walletPickerEl) {
+    _walletPickerEl.remove();
+    _walletPickerEl = null;
+    document.removeEventListener("click", _onWalletPickerOutsideClick, true);
+    document.removeEventListener("keydown", _onWalletPickerEscape);
+  }
+}
+
+function _onWalletPickerOutsideClick(e) {
+  if (_walletPickerEl && !_walletPickerEl.contains(e.target) && e.target.closest("[data-connect]") !== _walletPickerEl._anchor) {
+    _closeWalletPicker();
+  }
+}
+
+function _onWalletPickerEscape(e) {
+  if (e.key === "Escape") _closeWalletPicker();
+}
+
+function _toggleWalletPicker(anchorBtn) {
+  if (_walletPickerEl) {
+    _closeWalletPicker();
+    return;
+  }
+
+  const flags = _detectWalletFlags();
+  const wallets = [
+    {
+      key: "phantom",
+      name: "Phantom",
+      sub: "Phantom cannot sign Robinhood Chain transactions for websites yet. Use Rabby, MetaMask, or Robinhood Wallet.",
+      icon: "👻",
+      iconBg: "linear-gradient(180deg,#AB9FF2,#6851C7)",
+      status: "unsupported",
+    },
+    {
+      key: "rabby",
+      name: "Rabby",
+      sub: flags.rabby ? "Detected" : "Not detected",
+      icon: "🐰",
+      iconBg: "linear-gradient(180deg,#7A88FF,#4C5FEB)",
+      status: flags.rabby ? "connect" : "install",
+      installUrl: "https://rabby.io",
+    },
+    {
+      key: "metamask",
+      name: "MetaMask",
+      sub: flags.metamask ? "Detected" : "Not detected",
+      icon: "🦊",
+      iconBg: "linear-gradient(180deg,#FF9A3D,#E8821A)",
+      status: flags.metamask ? "connect" : "install",
+      installUrl: "https://metamask.io/download",
+    },
+    {
+      key: "robinhood",
+      name: "Robinhood Wallet",
+      sub: flags.robinhood ? "Detected" : "Not detected",
+      icon: "R",
+      iconBg: "#0A0D0C",
+      status: flags.robinhood ? "connect" : "install",
+      installUrl: "https://robinhood.com/us/en/support/articles/robinhood-wallet/",
+    },
+  ];
+
+  const picker = document.createElement("div");
+  picker.className = "wallet-picker";
+  picker._anchor = anchorBtn;
+
+  const header = document.createElement("div");
+  header.className = "wallet-picker-head";
+  header.textContent = "Connect a wallet";
+  picker.appendChild(header);
+
+  wallets.forEach((w) => {
+    const row = document.createElement("div");
+    row.className = "wallet-row" + (w.status === "unsupported" ? " is-unsupported" : "");
+
+    const icon = document.createElement("div");
+    icon.className = "wallet-row-icon";
+    icon.style.background = w.iconBg;
+    icon.textContent = w.icon;
+    row.appendChild(icon);
+
+    const text = document.createElement("div");
+    text.className = "wallet-row-text";
+    text.innerHTML = "<b>" + w.name + "</b><span>" + w.sub + "</span>";
+    row.appendChild(text);
+
+    const status = document.createElement(w.status === "unsupported" ? "span" : "button");
+    status.className = "wallet-row-status status-" + w.status;
+    if (w.status === "connect") {
+      status.textContent = "Connect";
+      status.type = "button";
+      status.addEventListener("click", async () => {
+        _closeWalletPicker();
+        await connectWallet();
+      });
+    } else if (w.status === "install") {
+      status.textContent = "Install";
+      status.type = "button";
+      status.addEventListener("click", () => window.open(w.installUrl, "_blank", "noopener"));
+    } else {
+      status.textContent = "Unsupported";
+    }
+    row.appendChild(status);
+
+    picker.appendChild(row);
+  });
+
+  document.body.appendChild(picker);
+  const rect = anchorBtn.getBoundingClientRect();
+  picker.style.position = "fixed";
+  picker.style.top = rect.bottom + 8 + "px";
+  const left = Math.min(rect.right - picker.offsetWidth, window.innerWidth - picker.offsetWidth - 12);
+  picker.style.left = Math.max(12, left) + "px";
+
+  _walletPickerEl = picker;
+  setTimeout(() => {
+    document.addEventListener("click", _onWalletPickerOutsideClick, true);
+    document.addEventListener("keydown", _onWalletPickerEscape);
+  }, 0);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
