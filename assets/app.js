@@ -3,23 +3,16 @@
  *
  * Every launch is a real Uniswap v4 pool from the block it's created
  * (Launchpad.sol) — there's no separate curve contract and no migration.
- * `loadDeployment()` fetches deployments/testnet.json or mainnet.json,
- * written by script/Deploy.s.sol / DeployMainnet.s.sol, picking the file
- * that matches the connected wallet's chain (testnet by default). Trading
- * always looks like "connect wallet, send ETH, get tokens" from the
- * trader's side, through LaunchRouter — even for a market paired with a
- * property class, which trades against that class's coin under the hood.
- * Until a deployment file has a real `launchpad` address in it (see
- * DEPLOY.md), the site runs in preview-only mode.
+ * `loadDeployment()` fetches deployments/mainnet.json, written by
+ * script/DeployMainnet.s.sol — this site is mainnet-only, there's no
+ * testnet fallback in the wallet-connect path (see ensureRobinhoodChain).
+ * Trading always looks like "connect wallet, send ETH, get tokens" from
+ * the trader's side, through LaunchRouter — even for a market paired with
+ * a property class, which trades against that class's coin under the
+ * hood. Until deployments/mainnet.json has a real `launchpad` address in
+ * it (see DEPLOY.md), the site runs in preview-only mode.
  */
 
-const RH_TESTNET = {
-  chainName: "Robinhood Chain Testnet",
-  chainIdHex: "0xb626", // 46630
-  rpcUrls: ["https://rpc.testnet.chain.robinhood.com"],
-  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-  blockExplorerUrls: ["https://explorer.testnet.chain.robinhood.com"],
-};
 const RH_MAINNET = {
   chainName: "Robinhood Chain",
   chainIdHex: "0x1237", // 4663
@@ -27,7 +20,6 @@ const RH_MAINNET = {
   nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
   blockExplorerUrls: ["https://robinhoodchain.blockscout.com"],
 };
-const RH_CHAIN = RH_TESTNET; // back-compat default export, see ensureRobinhoodChain()
 
 // Minimal ABI fragments, just what the site calls. `getLaunch` mirrors
 // Launchpad.Launch exactly — field order matters for the tuple decode.
@@ -123,43 +115,28 @@ function _invalidateReadCache() {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Deployment loader, reads deployments/{testnet,mainnet}.json            */
+/* Deployment loader, reads deployments/mainnet.json                      */
 /* ---------------------------------------------------------------------- */
 
 let deploymentCache = null;
-let deploymentCacheFile = null;
 
-/** Fetches deployments/mainnet.json, falling back to deployments/testnet.json
- *  only if mainnet isn't deployed yet, and caches whichever one is used.
- *  Returns null (rather than throwing) if neither is deployed, so callers
- *  can fall back to preview mode.
- *
- *  This used to pick the file by asking the wallet's CURRENT chain id —
- *  which is backwards on a fresh connect: the whole point of
- *  ensureRobinhoodChain() below is to ADD/SWITCH the wallet onto Robinhood
- *  Chain, so at that point it's never already there yet. That always fell
- *  through to testnet.json, which is a stale pre-rebuild file with no
- *  `launchpad` field — so loadDeployment() returned null and
- *  ensureRobinhoodChain() asked the wallet to add Robinhood Chain
- *  TESTNET instead of the real, live mainnet deployment. Deciding by
- *  which file actually has a real deployment in it, independent of
- *  whatever chain the wallet happens to be on, fixes that. */
+/** Fetches deployments/mainnet.json and caches it. Returns null (rather
+ *  than throwing) if it's missing or still the unfilled placeholder, so
+ *  callers can fall back to preview mode. Mainnet-only — see
+ *  ensureRobinhoodChain() for why there's no testnet fallback here. */
 async function loadDeployment() {
-  for (const file of ["deployments/mainnet.json", "deployments/testnet.json"]) {
-    if (deploymentCacheFile === file && deploymentCache) return deploymentCache;
-    try {
-      const res = await fetch(file, { cache: "no-store" });
-      if (!res.ok) continue;
-      const json = await res.json();
-      if (!json.launchpad) continue; // still the placeholder, or the stale pre-rebuild file
-      deploymentCache = json;
-      deploymentCacheFile = file;
-      return json;
-    } catch (err) {
-      console.warn(`Couldn't read ${file}, trying the next one.`, err);
-    }
+  if (deploymentCache) return deploymentCache;
+  try {
+    const res = await fetch("deployments/mainnet.json", { cache: "no-store" });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.launchpad) return null; // still the placeholder
+    deploymentCache = json;
+    return json;
+  } catch (err) {
+    console.warn("No deployment found yet, running in preview mode.", err);
+    return null;
   }
-  return null;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -218,34 +195,35 @@ async function _restoreActiveProvider() {
   } catch (_) { /* fine — falls back to window.ethereum */ }
 }
 
-/** Adds/switches the connected wallet to whichever Robinhood Chain network
- *  the current deployment (if any) targets — mainnet once a real
- *  deployments/mainnet.json exists, testnet otherwise. */
+/** Adds/switches the connected wallet to Robinhood Chain mainnet — the
+ *  site is mainnet-only, so there's nothing to branch on here. (This used
+ *  to pick testnet vs mainnet based on the loaded deployment, which broke
+ *  on a fresh connect — see loadDeployment()'s docs — and testnet doesn't
+ *  need supporting here anyway: there's no live deployment to trade
+ *  against there.) */
 async function ensureRobinhoodChain() {
-  const deployment = await loadDeployment();
-  const chain = deployment && deployment.chainId === 4663 ? RH_MAINNET : RH_TESTNET;
   const eth = _getProvider();
   try {
     await eth.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: chain.chainIdHex }],
+      params: [{ chainId: RH_MAINNET.chainIdHex }],
     });
   } catch (switchErr) {
     // 4902 = chain not added to the wallet yet
     if (switchErr.code === 4902) {
       // wallet_addEthereumChain has a strict, EIP-3085 param shape — it
       // wants `chainId`, not our own internal `chainIdHex` field name.
-      // Spreading the whole `chain` object here used to send an extra
+      // Spreading the whole RH_MAINNET object here used to send an extra
       // `chainIdHex` key that recent MetaMask versions reject outright
       // ("Received unexpected keys on object parameter").
       await eth.request({
         method: "wallet_addEthereumChain",
         params: [{
-          chainId: chain.chainIdHex,
-          chainName: chain.chainName,
-          rpcUrls: chain.rpcUrls,
-          nativeCurrency: chain.nativeCurrency,
-          blockExplorerUrls: chain.blockExplorerUrls,
+          chainId: RH_MAINNET.chainIdHex,
+          chainName: RH_MAINNET.chainName,
+          rpcUrls: RH_MAINNET.rpcUrls,
+          nativeCurrency: RH_MAINNET.nativeCurrency,
+          blockExplorerUrls: RH_MAINNET.blockExplorerUrls,
         }],
       });
     } else {
@@ -253,8 +231,6 @@ async function ensureRobinhoodChain() {
     }
   }
 }
-// Back-compat name used by older inline page scripts.
-const ensureRobinhoodTestnet = ensureRobinhoodChain;
 
 function _setConnectedUi(account) {
   currentAccount = account;
@@ -292,7 +268,7 @@ async function connectWallet(provider, rdns) {
     _activeProvider = eth;
     if (rdns) localStorage.setItem(WALLET_RDNS_KEY, rdns);
     else localStorage.removeItem(WALLET_RDNS_KEY);
-    await ensureRobinhoodTestnet();
+    await ensureRobinhoodChain();
     _setConnectedUi(accounts[0]);
     eth.on?.("accountsChanged", _onActiveProviderAccountsChanged);
     document.dispatchEvent(new CustomEvent("parcel:connected", { detail: accounts[0] }));
@@ -1387,7 +1363,7 @@ function quoteBuy(ethIn, tokensSoldSoFar) {
 
 window.Parcel = {
   parcelGlyph, renderClassTile, classDisplayName, virtualReserves, quoteBuy, CURVE,
-  connectWallet, disconnectWallet, loadDeployment, submitLaunch, ensureRobinhoodChain, ensureRobinhoodTestnet, RH_CHAIN, RH_TESTNET, RH_MAINNET,
+  connectWallet, disconnectWallet, loadDeployment, submitLaunch, ensureRobinhoodChain, RH_MAINNET,
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin, fetchPropertyCoinFullState, fetchPropertyCoinActivity,
   fetchAllLaunches, fetchLaunchById, decodeMetadata, escapeHtml, resizeImageToDataUri, priceFromSqrtPriceX96, curveProgressPct,
   fetchMarketState, fetchRecentTrades, fetchMarketVolumeEth, buyOnMarket, buyOnMarketWithCoin, sellOnMarket,
