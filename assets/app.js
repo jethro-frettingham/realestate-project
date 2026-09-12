@@ -720,6 +720,77 @@ async function fetchRewardsStats() {
   });
 }
 
+/** Estimates the block N seconds in the past by empirically measuring this
+ *  chain's actual seconds-per-block from two real blocks, rather than
+ *  assuming a fixed block time — a wrong hardcoded guess would silently
+ *  mis-scope every "last 24h" style query. Falls back to a 2s/block
+ *  assumption only if the chain is too young to have a distinct sample
+ *  block yet (can't divide by zero blocks of difference). */
+async function _estimateBlockSecondsAgo(provider, seconds) {
+  const latest = await provider.getBlock("latest");
+  const sampleNumber = Math.max(0, latest.number - 5000);
+  const sample = sampleNumber === latest.number ? latest : await provider.getBlock(sampleNumber);
+  const blockDelta = latest.number - sample.number;
+  const secondsPerBlock = blockDelta > 0 ? (latest.timestamp - sample.timestamp) / blockDelta : 2;
+  const blocksAgo = Math.ceil(seconds / Math.max(secondsPerBlock, 0.001));
+  return Math.max(0, latest.number - blocksAgo);
+}
+
+/**
+ * Headline protocol-wide stats for the homepage's dark stats strip, read
+ * straight from chain like everything else here:
+ *   - markets: total launches ever created.
+ *   - properties: distinct property classes that have actually been used
+ *     as a launch's pairing so far (not the fixed 20-class catalog size —
+ *     this one only grows as classes actually get used).
+ *   - volume24hEthEquiv: every market's buy/sell volume from roughly the
+ *     last 24h, each converted to an ETH-equivalent using that market's
+ *     quote asset's *current* rate (same approach as fetchRewardsStats).
+ *     "Roughly" because the 24h cutoff is a block-number estimate (see
+ *     _estimateBlockSecondsAgo), not a per-trade timestamp lookup — exact
+ *     would mean one extra RPC call per unique block across every trade.
+ *   - valueLockedEthEquiv: net ETH-equivalent currently sitting in every
+ *     market's pool (cumulative buys minus cumulative sells, all-time),
+ *     same ETH-equivalent conversion. An approximation, not a real TVL
+ *     read of each pool's actual reserves — those aren't a simple balance
+ *     check under Uniswap v4's singleton PoolManager accounting.
+ */
+async function fetchProtocolStats() {
+  return _cachedRead("fetchProtocolStats", async () => {
+    const deployment = await loadDeployment();
+    if (!deployment || typeof ethers === "undefined") return null;
+    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+
+    const launches = await fetchAllLaunches();
+    const markets = launches.length;
+    const properties = new Set(launches.map((l) => l.propertyClass).filter(Boolean)).size;
+
+    const cutoffBlock = await _estimateBlockSecondsAgo(provider, 24 * 60 * 60);
+
+    let volume24hEthEquiv = 0n;
+    let valueLockedEthEquiv = 0n;
+    await Promise.all(launches.map(async (l) => {
+      const trades = await fetchRecentTrades(l.launchId, Number.MAX_SAFE_INTEGER);
+      let rateWeiPerUnit = 10n ** 18n; // ETH-quoted: 1:1, no conversion needed
+      if (l.quoteAsset !== ethers.ZeroAddress) {
+        try {
+          const rate = await readPropertyCoin(l.propertyClass, null);
+          if (rate) rateWeiPerUnit = rate.weiPerUnit;
+        } catch (_) { /* couldn't resolve a rate — this market's contribution stays at 0 */ }
+      }
+      for (const t of trades) {
+        const quoteAmount = t.isBuy ? t.ethIn : t.ethOut;
+        const ethEquiv = (quoteAmount * rateWeiPerUnit) / (10n ** 18n);
+        if (t.blockNumber >= cutoffBlock) volume24hEthEquiv += ethEquiv;
+        valueLockedEthEquiv += t.isBuy ? ethEquiv : -ethEquiv;
+      }
+    }));
+    if (valueLockedEthEquiv < 0n) valueLockedEthEquiv = 0n; // shouldn't happen, but never show a negative TVL
+
+    return { markets, properties, volume24hEthEquiv, valueLockedEthEquiv };
+  });
+}
+
 /** Pulls a market's accrued LP fees out of its two Uniswap v4 positions
  *  and routes them 40% holders / 30% buyback / 30% protocol. Permissionless
  *  — anyone holding no stake in the market can call this for anyone else's
@@ -1055,5 +1126,5 @@ window.Parcel = {
   mintPropertyCoin, redeemPropertyCoin, readPropertyCoin, fetchPropertyCoinFullState, fetchPropertyCoinActivity,
   fetchAllLaunches, fetchLaunchById, decodeMetadata, escapeHtml, resizeImageToDataUri, priceFromSqrtPriceX96, curveProgressPct,
   fetchMarketState, fetchRecentTrades, fetchMarketVolumeEth, buyOnMarket, buyOnMarketWithCoin, sellOnMarket,
-  fetchEarnedRewards, claimMarketRewards, fetchRewardsStats, collectFeesOnMarket, executeBuyback,
+  fetchEarnedRewards, claimMarketRewards, fetchRewardsStats, fetchProtocolStats, collectFeesOnMarket, executeBuyback,
 };
