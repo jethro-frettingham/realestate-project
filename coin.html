@@ -165,6 +165,19 @@
       return;
     }
 
+    // The real Paxos Global Dollar contract has no mint/redeem relationship
+    // with this site, unlike testnet's or a local rehearsal's stand-in (a
+    // PropertyClassCoin deployed just to support this page's mint/redeem
+    // flow) — calling this page's usual state-fetch against the real
+    // contract would just fail (it has no weiPerUnit()/mint()/redeem() of
+    // its own). Checking chainId alone isn't reliable: a local rehearsal
+    // deliberately reports mainnet's chain id (4663) too while still using
+    // its own stand-in address, so this checks the actual address instead.
+    if (ticker === "USDG" && (deployment.usdg || "").toLowerCase() === "0x5fc5360d0400a0fd4f2af552add042d716f1d168") {
+      setStatus("USDG here is the real Global Dollar stablecoin — this site doesn't mint or redeem it. Get it through any exchange or bridge that supports USDG on Robinhood Chain.", true);
+      return;
+    }
+
     document.getElementById("co-icon").innerHTML = classEntry.glyph ? parcelGlyph(classEntry.glyph) : GENERIC_COIN_GLYPH;
     document.getElementById("co-tag").textContent = classEntry.ticker;
     document.getElementById("co-name").textContent = classEntry.displayName;
