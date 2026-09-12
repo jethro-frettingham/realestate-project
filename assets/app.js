@@ -129,43 +129,37 @@ function _invalidateReadCache() {
 let deploymentCache = null;
 let deploymentCacheFile = null;
 
-/** Fetches deployments/testnet.json or mainnet.json once per file and
- *  caches it. Returns null (rather than throwing) if it's missing or
- *  still the unfilled placeholder, so callers can fall back to preview
- *  mode. Picks mainnet.json only if a wallet is connected and reports
- *  Robinhood Chain mainnet (4663); testnet.json otherwise, since that's
- *  what's actually live during development. */
+/** Fetches deployments/mainnet.json, falling back to deployments/testnet.json
+ *  only if mainnet isn't deployed yet, and caches whichever one is used.
+ *  Returns null (rather than throwing) if neither is deployed, so callers
+ *  can fall back to preview mode.
+ *
+ *  This used to pick the file by asking the wallet's CURRENT chain id —
+ *  which is backwards on a fresh connect: the whole point of
+ *  ensureRobinhoodChain() below is to ADD/SWITCH the wallet onto Robinhood
+ *  Chain, so at that point it's never already there yet. That always fell
+ *  through to testnet.json, which is a stale pre-rebuild file with no
+ *  `launchpad` field — so loadDeployment() returned null and
+ *  ensureRobinhoodChain() asked the wallet to add Robinhood Chain
+ *  TESTNET instead of the real, live mainnet deployment. Deciding by
+ *  which file actually has a real deployment in it, independent of
+ *  whatever chain the wallet happens to be on, fixes that. */
 async function loadDeployment() {
-  let file = "deployments/testnet.json";
-  try {
-    const eth = _getProvider();
-    if (eth) {
-      // A wallet extension's provider can hang indefinitely (e.g. a stale
-      // MetaMask service-worker connection after it's been idle) rather
-      // than ever rejecting — await-ing it with no timeout would block
-      // every page's data loading forever. Race it against a short
-      // timeout and just fall back to testnet if it doesn't answer.
-      const chainIdHex = await Promise.race([
-        eth.request({ method: "eth_chainId" }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("wallet timeout")), 1500)),
-      ]);
-      if (chainIdHex && chainIdHex.toLowerCase() === RH_MAINNET.chainIdHex) file = "deployments/mainnet.json";
+  for (const file of ["deployments/mainnet.json", "deployments/testnet.json"]) {
+    if (deploymentCacheFile === file && deploymentCache) return deploymentCache;
+    try {
+      const res = await fetch(file, { cache: "no-store" });
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (!json.launchpad) continue; // still the placeholder, or the stale pre-rebuild file
+      deploymentCache = json;
+      deploymentCacheFile = file;
+      return json;
+    } catch (err) {
+      console.warn(`Couldn't read ${file}, trying the next one.`, err);
     }
-  } catch (_) { /* no wallet yet, or it didn't answer in time — default to testnet */ }
-
-  if (deploymentCacheFile === file && deploymentCache) return deploymentCache;
-  try {
-    const res = await fetch(file, { cache: "no-store" });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (!json.launchpad) return null; // still the placeholder
-    deploymentCache = json;
-    deploymentCacheFile = file;
-    return json;
-  } catch (err) {
-    console.warn("No deployment found yet, running in preview mode.", err);
-    return null;
   }
+  return null;
 }
 
 /* ---------------------------------------------------------------------- */
