@@ -138,14 +138,15 @@ let deploymentCacheFile = null;
 async function loadDeployment() {
   let file = "deployments/testnet.json";
   try {
-    if (window.ethereum) {
+    const eth = _getProvider();
+    if (eth) {
       // A wallet extension's provider can hang indefinitely (e.g. a stale
       // MetaMask service-worker connection after it's been idle) rather
       // than ever rejecting — await-ing it with no timeout would block
       // every page's data loading forever. Race it against a short
       // timeout and just fall back to testnet if it doesn't answer.
       const chainIdHex = await Promise.race([
-        window.ethereum.request({ method: "eth_chainId" }),
+        eth.request({ method: "eth_chainId" }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("wallet timeout")), 1500)),
       ]);
       if (chainIdHex && chainIdHex.toLowerCase() === RH_MAINNET.chainIdHex) file = "deployments/mainnet.json";
@@ -173,23 +174,85 @@ async function loadDeployment() {
 
 let currentAccount = null;
 
+// Set once the user picks a specific wallet out of the connect picker (or
+// on page load, if a previous pick can be re-matched via EIP-6963 — see
+// _restoreActiveProvider). Every wallet-facing call in this file should go
+// through _getProvider() rather than window.ethereum directly: with more
+// than one extension installed, window.ethereum is whichever one won the
+// injection race (often Coinbase Wallet or Phantom, regardless of what the
+// user actually picked in our own UI), not necessarily the one the user
+// chose — that mismatch was the root cause of "picked MetaMask, got a
+// Coinbase/Phantom popup instead" reports.
+let _activeProvider = null;
+function _getProvider() {
+  return _activeProvider || window.ethereum || null;
+}
+
+const WALLET_RDNS_KEY = "castle_wallet_rdns";
+
+/** EIP-6963 (Multi Injected Provider Discovery) lets every installed
+ *  wallet announce itself with a stable id (`info.rdns`) instead of all of
+ *  them fighting over the single window.ethereum global. Supported by
+ *  current MetaMask, Rabby, Coinbase Wallet and Phantom's EVM provider;
+ *  wallets that don't support it yet just won't show up here, and callers
+ *  fall back to window.ethereum + its isX flags (see _detectWallets). */
+function _collectEip6963Providers() {
+  return new Promise((resolve) => {
+    const found = [];
+    const onAnnounce = (e) => found.push(e.detail);
+    window.addEventListener("eip6963:announceProvider", onAnnounce);
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    setTimeout(() => {
+      window.removeEventListener("eip6963:announceProvider", onAnnounce);
+      resolve(found);
+    }, 200);
+  });
+}
+
+/** Re-selects whichever wallet the user connected with last time (by
+ *  rdns, via EIP-6963) so a page navigation on this multi-page site keeps
+ *  using the SAME wallet instead of silently falling back to whatever
+ *  window.ethereum happens to point at right now. No-op if nothing was
+ *  saved, or that wallet isn't announcing this time. */
+async function _restoreActiveProvider() {
+  const savedRdns = localStorage.getItem(WALLET_RDNS_KEY);
+  if (!savedRdns) return;
+  try {
+    const announced = await _collectEip6963Providers();
+    const match = announced.find((a) => a.info && a.info.rdns === savedRdns);
+    if (match) _activeProvider = match.provider;
+  } catch (_) { /* fine — falls back to window.ethereum */ }
+}
+
 /** Adds/switches the connected wallet to whichever Robinhood Chain network
  *  the current deployment (if any) targets — mainnet once a real
  *  deployments/mainnet.json exists, testnet otherwise. */
 async function ensureRobinhoodChain() {
   const deployment = await loadDeployment();
   const chain = deployment && deployment.chainId === 4663 ? RH_MAINNET : RH_TESTNET;
+  const eth = _getProvider();
   try {
-    await window.ethereum.request({
+    await eth.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: chain.chainIdHex }],
     });
   } catch (switchErr) {
     // 4902 = chain not added to the wallet yet
     if (switchErr.code === 4902) {
-      await window.ethereum.request({
+      // wallet_addEthereumChain has a strict, EIP-3085 param shape — it
+      // wants `chainId`, not our own internal `chainIdHex` field name.
+      // Spreading the whole `chain` object here used to send an extra
+      // `chainIdHex` key that recent MetaMask versions reject outright
+      // ("Received unexpected keys on object parameter").
+      await eth.request({
         method: "wallet_addEthereumChain",
-        params: [chain],
+        params: [{
+          chainId: chain.chainIdHex,
+          chainName: chain.chainName,
+          rpcUrls: chain.rpcUrls,
+          nativeCurrency: chain.nativeCurrency,
+          blockExplorerUrls: chain.blockExplorerUrls,
+        }],
       });
     } else {
       throw switchErr;
@@ -217,19 +280,41 @@ function _setDisconnectedUi() {
   });
 }
 
-async function connectWallet() {
-  if (!window.ethereum) {
+/** @param provider Specific EIP-1193 provider to connect (from the wallet
+ *    picker's EIP-6963 discovery). Falls back to window.ethereum when
+ *    omitted — the picker only omits it for a wallet it found by flag-
+ *    sniffing rather than EIP-6963 (see _detectWallets).
+ *  @param rdns The wallet's EIP-6963 rdns id, so a later page load can
+ *    re-select the same wallet instead of guessing (see
+ *    _restoreActiveProvider). Omitted for the flag-sniffed fallback path. */
+async function connectWallet(provider, rdns) {
+  const eth = provider || window.ethereum;
+  if (!eth) {
     alert("No injected wallet found. Install MetaMask, Rabby, or Coinbase Wallet to launch on Robinhood Chain.");
     return;
   }
   try {
-    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    const accounts = await eth.request({ method: "eth_requestAccounts" });
+    _activeProvider = eth;
+    if (rdns) localStorage.setItem(WALLET_RDNS_KEY, rdns);
+    else localStorage.removeItem(WALLET_RDNS_KEY);
     await ensureRobinhoodTestnet();
     _setConnectedUi(accounts[0]);
+    eth.on?.("accountsChanged", _onActiveProviderAccountsChanged);
     document.dispatchEvent(new CustomEvent("parcel:connected", { detail: accounts[0] }));
   } catch (err) {
     console.error("wallet connect failed", err);
     alert("Couldn't connect: " + (err.message || err));
+  }
+}
+
+function _onActiveProviderAccountsChanged(accounts) {
+  if (accounts.length === 0) {
+    _setDisconnectedUi();
+    document.dispatchEvent(new CustomEvent("parcel:disconnected"));
+  } else if (accounts[0] !== currentAccount) {
+    _setConnectedUi(accounts[0]);
+    document.dispatchEvent(new CustomEvent("parcel:connected", { detail: accounts[0] }));
   }
 }
 
@@ -243,11 +328,13 @@ async function connectWallet() {
  *  approval prompt, since the permission is still there). */
 async function disconnectWallet() {
   try {
-    await window.ethereum.request({
+    await _getProvider()?.request({
       method: "wallet_revokePermissions",
       params: [{ eth_accounts: {} }],
     });
   } catch (_) { /* not supported by this wallet — fine, soft-disconnect still applies */ }
+  _activeProvider = null;
+  localStorage.removeItem(WALLET_RDNS_KEY);
   _setDisconnectedUi();
   document.dispatchEvent(new CustomEvent("parcel:disconnected"));
 }
@@ -260,20 +347,51 @@ async function _handleConnectButtonClick(e) {
   }
 }
 
-/** Sniffs the injected provider(s) for the handful of wallet flags that
- *  matter here. Rabby also sets isMetaMask=true for compatibility, so it's
- *  checked first and excluded from the MetaMask match. Robinhood Wallet's
- *  flag is a best guess (no official docs found) — worst case it just shows
- *  as "Not detected" instead of breaking anything. */
-function _detectWalletFlags() {
+/** Finds each wallet's OWN provider object, not just whether one is
+ *  installed — picking "MetaMask" in the UI must call eth_requestAccounts
+ *  on MetaMask's actual provider, never the ambiguous window.ethereum
+ *  (which, with more than one extension installed, is whichever one won
+ *  the injection race — commonly Coinbase Wallet or Phantom, regardless of
+ *  what the user picked). EIP-6963 is the primary path since it's
+ *  collision-free by design; flag-sniffing window.ethereum (and its
+ *  .providers array, from wallets still using the older EIP-5749-ish
+ *  pattern) is only a fallback for a wallet that hasn't adopted EIP-6963
+ *  yet — in that fallback case there's still only one thing to point at,
+ *  so the ambiguity risk doesn't apply. Robinhood Wallet's rdns/flag are a
+ *  best guess (no official docs found) — worst case it just shows as "Not
+ *  detected" instead of breaking anything. */
+async function _detectWallets() {
+  const announced = await _collectEip6963Providers();
+  const byRdnsOrName = (needle) =>
+    announced.find(
+      (a) => (a.info?.rdns || "").toLowerCase().includes(needle) || (a.info?.name || "").toLowerCase().includes(needle)
+    );
+
+  const rabbyAnnounced = byRdnsOrName("rabby");
+  const metamaskAnnounced = byRdnsOrName("metamask");
+  const robinhoodAnnounced = byRdnsOrName("robinhood");
+
+  // Fallback for wallets not announcing via EIP-6963 yet: only trust
+  // window.ethereum's own flags when nothing else claimed the slot via
+  // EIP-6963, since a 6963-aware wallet can still leave stale flags on a
+  // window.ethereum it doesn't actually own.
   const eth = window.ethereum;
-  const providers = (eth && eth.providers) || (eth ? [eth] : []);
-  const has = (flag) => providers.some((p) => p && p[flag]);
-  return {
-    rabby: has("isRabby"),
-    metamask: has("isMetaMask") && !has("isRabby"),
-    robinhood: has("isRobinhoodWallet") || has("isRobinhood"),
-  };
+  const legacyProviders = (eth && eth.providers) || (eth ? [eth] : []);
+  const legacyHas = (flag) => legacyProviders.some((p) => p && p[flag]);
+
+  const rabby = rabbyAnnounced || (announced.length === 0 && legacyHas("isRabby") ? { provider: eth, info: { rdns: null, name: "Rabby" } } : null);
+  const metamask =
+    metamaskAnnounced ||
+    (announced.length === 0 && legacyHas("isMetaMask") && !legacyHas("isRabby")
+      ? { provider: eth, info: { rdns: null, name: "MetaMask" } }
+      : null);
+  const robinhood =
+    robinhoodAnnounced ||
+    (announced.length === 0 && (legacyHas("isRobinhoodWallet") || legacyHas("isRobinhood"))
+      ? { provider: eth, info: { rdns: null, name: "Robinhood Wallet" } }
+      : null);
+
+  return { rabby, metamask, robinhood };
 }
 
 let _walletPickerEl = null;
@@ -297,13 +415,28 @@ function _onWalletPickerEscape(e) {
   if (e.key === "Escape") _closeWalletPicker();
 }
 
-function _toggleWalletPicker(anchorBtn) {
+async function _toggleWalletPicker(anchorBtn) {
   if (_walletPickerEl) {
     _closeWalletPicker();
     return;
   }
 
-  const flags = _detectWalletFlags();
+  // Placeholder while providers announce themselves (near-instant, but
+  // still async) — avoids a blank gap between click and dropdown.
+  const picker = document.createElement("div");
+  picker.className = "wallet-picker";
+  picker._anchor = anchorBtn;
+  const loading = document.createElement("div");
+  loading.className = "wallet-picker-head";
+  loading.textContent = "Connect a wallet";
+  picker.appendChild(loading);
+  document.body.appendChild(picker);
+  _positionWalletPicker(picker, anchorBtn);
+  _walletPickerEl = picker;
+
+  const found = await _detectWallets();
+  if (_walletPickerEl !== picker) return; // closed while we were detecting
+
   const wallets = [
     {
       key: "phantom",
@@ -316,36 +449,36 @@ function _toggleWalletPicker(anchorBtn) {
     {
       key: "rabby",
       name: "Rabby",
-      sub: flags.rabby ? "Detected" : "Not detected",
+      sub: found.rabby ? "Detected" : "Not detected",
       icon: "🐰",
       iconBg: "linear-gradient(180deg,#7A88FF,#4C5FEB)",
-      status: flags.rabby ? "connect" : "install",
+      status: found.rabby ? "connect" : "install",
       installUrl: "https://rabby.io",
+      match: found.rabby,
     },
     {
       key: "metamask",
       name: "MetaMask",
-      sub: flags.metamask ? "Detected" : "Not detected",
+      sub: found.metamask ? "Detected" : "Not detected",
       icon: "🦊",
       iconBg: "linear-gradient(180deg,#FF9A3D,#E8821A)",
-      status: flags.metamask ? "connect" : "install",
+      status: found.metamask ? "connect" : "install",
       installUrl: "https://metamask.io/download",
+      match: found.metamask,
     },
     {
       key: "robinhood",
       name: "Robinhood Wallet",
-      sub: flags.robinhood ? "Detected" : "Not detected",
+      sub: found.robinhood ? "Detected" : "Not detected",
       icon: "R",
       iconBg: "#0A0D0C",
-      status: flags.robinhood ? "connect" : "install",
+      status: found.robinhood ? "connect" : "install",
       installUrl: "https://robinhood.com/us/en/support/articles/robinhood-wallet/",
+      match: found.robinhood,
     },
   ];
 
-  const picker = document.createElement("div");
-  picker.className = "wallet-picker";
-  picker._anchor = anchorBtn;
-
+  picker.innerHTML = "";
   const header = document.createElement("div");
   header.className = "wallet-picker-head";
   header.textContent = "Connect a wallet";
@@ -373,7 +506,7 @@ function _toggleWalletPicker(anchorBtn) {
       status.type = "button";
       status.addEventListener("click", async () => {
         _closeWalletPicker();
-        await connectWallet();
+        await connectWallet(w.match.provider, w.match.info?.rdns || null);
       });
     } else if (w.status === "install") {
       status.textContent = "Install";
@@ -387,18 +520,19 @@ function _toggleWalletPicker(anchorBtn) {
     picker.appendChild(row);
   });
 
-  document.body.appendChild(picker);
+  _positionWalletPicker(picker, anchorBtn);
+  setTimeout(() => {
+    document.addEventListener("click", _onWalletPickerOutsideClick, true);
+    document.addEventListener("keydown", _onWalletPickerEscape);
+  }, 0);
+}
+
+function _positionWalletPicker(picker, anchorBtn) {
   const rect = anchorBtn.getBoundingClientRect();
   picker.style.position = "fixed";
   picker.style.top = rect.bottom + 8 + "px";
   const left = Math.min(rect.right - picker.offsetWidth, window.innerWidth - picker.offsetWidth - 12);
   picker.style.left = Math.max(12, left) + "px";
-
-  _walletPickerEl = picker;
-  setTimeout(() => {
-    document.addEventListener("click", _onWalletPickerOutsideClick, true);
-    document.addEventListener("keydown", _onWalletPickerEscape);
-  }, 0);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -413,25 +547,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   // to another page even though the wallet extension itself still
   // considers the site authorized. eth_accounts (unlike
   // eth_requestAccounts) never prompts, it just reports what's already
-  // approved.
-  if (window.ethereum) {
+  // approved. Re-selects the SAME wallet as last time first (by rdns) so a
+  // navigation doesn't silently switch to whatever window.ethereum
+  // happens to point at with multiple extensions installed.
+  await _restoreActiveProvider();
+  const eth = _getProvider();
+  if (eth) {
     try {
-      const accounts = await window.ethereum.request({ method: "eth_accounts" });
+      const accounts = await eth.request({ method: "eth_accounts" });
       if (accounts.length > 0) {
         _setConnectedUi(accounts[0]);
         document.dispatchEvent(new CustomEvent("parcel:connected", { detail: accounts[0] }));
       }
     } catch (_) { /* wallet not ready yet, or refused — stay disconnected */ }
 
-    window.ethereum.on?.("accountsChanged", (accounts) => {
-      if (accounts.length === 0) {
-        _setDisconnectedUi();
-        document.dispatchEvent(new CustomEvent("parcel:disconnected"));
-      } else if (accounts[0] !== currentAccount) {
-        _setConnectedUi(accounts[0]);
-        document.dispatchEvent(new CustomEvent("parcel:connected", { detail: accounts[0] }));
-      }
-    });
+    eth.on?.("accountsChanged", _onActiveProviderAccountsChanged);
   }
 });
 
@@ -454,9 +584,9 @@ async function submitLaunch({ name, symbol, pairCoinAddress, feeBps, metadataURI
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet. See DEPLOY.md to deploy the contracts first.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
+  if (!_getProvider()) throw new Error("No wallet connected.");
 
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, signer);
 
@@ -499,12 +629,12 @@ function classVenue(deployment, ticker) {
  *  rate (static tier) or swaps against the class's AMM peg (live tier). */
 async function mintPropertyCoin(ticker, ethIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
+  if (!_getProvider()) throw new Error("No wallet connected.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet.");
   const venue = classVenue(deployment, ticker);
   if (!venue) throw new Error("Unknown or undeployed coin: " + ticker);
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   if (venue.tier === "live") {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, signer);
@@ -525,12 +655,12 @@ async function mintPropertyCoin(ticker, ethIn) {
  *  collected (live tier; see PegPool.sol). */
 async function redeemPropertyCoin(ticker, coinIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
+  if (!_getProvider()) throw new Error("No wallet connected.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet.");
   const venue = classVenue(deployment, ticker);
   if (!venue) throw new Error("Unknown or undeployed coin: " + ticker);
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   if (venue.tier === "live") {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, signer);
@@ -940,8 +1070,8 @@ async function collectFeesOnMarket(launchId) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  if (!_getProvider()) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, signer);
   const tx = await launchpad.collectFees(launchId);
@@ -957,8 +1087,8 @@ async function executeBuyback() {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   const deployment = await loadDeployment();
   if (!deployment || !deployment.buyback) throw new Error("No live deployment found yet.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  if (!_getProvider()) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   const buyback = new ethers.Contract(deployment.buyback, BUYBACK_ABI, signer);
   const tx = await buyback.executeBuyback();
@@ -974,8 +1104,8 @@ async function buyOnMarket(launchId, ethIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  if (!_getProvider()) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, signer);
   const tx = await router.buy(launchId, 0n, { value: ethIn });
@@ -998,8 +1128,8 @@ async function buyOnMarketWithCoin(launchId, coinAddress, coinAmountIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  if (!_getProvider()) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   const coin = new ethers.Contract(coinAddress, PROPERTY_COIN_ABI, signer);
 
@@ -1035,8 +1165,8 @@ async function sellOnMarket(launchId, tokenAddress, tokenAmountIn) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
   const deployment = await loadDeployment();
   if (!deployment) throw new Error("No live deployment found yet.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  if (!_getProvider()) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   const account = await signer.getAddress();
   const token = new ethers.Contract(tokenAddress, TOKEN_ABI, signer);
@@ -1071,8 +1201,8 @@ async function fetchEarnedRewards(tokenAddress, account) {
 
 async function claimMarketRewards(tokenAddress) {
   if (typeof ethers === "undefined") throw new Error("ethers.js didn't load, check your connection and reload.");
-  if (!window.ethereum) throw new Error("No wallet connected.");
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  if (!_getProvider()) throw new Error("No wallet connected.");
+  const provider = new ethers.BrowserProvider(_getProvider());
   const signer = await provider.getSigner();
   const token = new ethers.Contract(tokenAddress, TOKEN_ABI, signer);
   const tx = await token.claimRewards();
