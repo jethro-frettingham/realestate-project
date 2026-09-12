@@ -1,4 +1,4 @@
-# Parcel
+# CASTLE
 
 A launchpad on Robinhood Chain where anyone can launch a token, optionally
 tethered to a real property-class coin — a tin storage shed, a friend's
