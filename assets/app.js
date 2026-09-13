@@ -119,6 +119,49 @@ function _describePegPoolError(err) {
 const READ_CACHE_TTL_MS = 15000;
 const _readCache = new Map(); // key -> { expires, promise }
 
+// Every read-only function used to create its own fresh JsonRpcProvider —
+// harmless with one market on the page, but a page with N markets fires
+// N+ of these in parallel (loadMarkets, readPropertyCoin per classed
+// market, ...), and each fresh instance does its own network-detection
+// round trip before its real call even goes out. Sharing one instance
+// per rpcUrl — with the chain id passed in explicitly so ethers never
+// needs to probe for it — cuts that down to one setup cost per page
+// load instead of one per call.
+const _readProviderCache = new Map(); // rpcUrl -> ethers.JsonRpcProvider
+function _readProvider(deployment) {
+  let provider = _readProviderCache.get(deployment.rpcUrl);
+  if (!provider) {
+    provider = new ethers.JsonRpcProvider(deployment.rpcUrl, deployment.chainId, { staticNetwork: true });
+    _readProviderCache.set(deployment.rpcUrl, provider);
+  }
+  return provider;
+}
+
+/** Like Promise.all(items.map(fn)), but only `limit` calls in flight at
+ *  once. A page listing every market fires several RPC calls PER market
+ *  (state, volume, and — for a classed one — its class's rate); a
+ *  Promise.all across all of them fires that whole burst as one wave of
+ *  brand-new connections to a host the browser hasn't talked to yet this
+ *  page load, which is exactly the situation observed to intermittently
+ *  fail with a bare "Failed to fetch" (no CORS headers on whatever the
+ *  real error was for the browser to report anything more specific) —
+ *  the same calls always succeed run individually, or after the page
+ *  has already warmed up a connection. Capping how many run at once
+ *  keeps the market list loading correctly regardless of how many
+ *  markets exist. */
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 function _cachedRead(key, fn) {
   const hit = _readCache.get(key);
   if (hit && hit.expires > Date.now()) return hit.promise;
@@ -684,11 +727,15 @@ async function redeemPropertyCoin(ticker, coinIn) {
  *  caller's balance of it. Uses the public RPC, no wallet required just
  *  to read the rate. */
 async function readPropertyCoin(ticker, account) {
+  return _cachedRead("readPropertyCoin:" + ticker + ":" + (account || ""), () => _readPropertyCoinUncached(ticker, account));
+}
+
+async function _readPropertyCoinUncached(ticker, account) {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined") return null;
   const venue = classVenue(deployment, ticker);
   if (!venue) return null;
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const provider = _readProvider(deployment);
   if (venue.tier === "live") {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, provider);
     const [weiPerUnit, coinAddr] = await Promise.all([pool.weiPerUnit(), pool.coin()]);
@@ -712,7 +759,7 @@ async function fetchPropertyCoinFullState(ticker) {
   if (!deployment || typeof ethers === "undefined") return null;
   const venue = classVenue(deployment, ticker);
   if (!venue) return null;
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const provider = _readProvider(deployment);
   if (venue.tier === "live") {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, provider);
     const coinAddr = await pool.coin();
@@ -737,7 +784,7 @@ async function fetchPropertyCoinActivity(ticker, maxResults = 50) {
   if (!deployment || typeof ethers === "undefined") return [];
   const venue = classVenue(deployment, ticker);
   if (!venue) return [];
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const provider = _readProvider(deployment);
   const fromBlock = deployment.deployedBlock || 0;
 
   let all;
@@ -778,7 +825,7 @@ async function fetchAllLaunches() {
   return _cachedRead("fetchAllLaunches", async () => {
     const deployment = await loadDeployment();
     if (!deployment || typeof ethers === "undefined") return [];
-    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const provider = _readProvider(deployment);
     const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
     const count = Number(await launchpad.launchCount());
     // Parallel, not sequential — a for-loop of N awaited round-trips means
@@ -872,7 +919,7 @@ async function fetchMarketState(launchId) {
   return _cachedRead("fetchMarketState:" + launchId, async () => {
     const deployment = await loadDeployment();
     if (!deployment || typeof ethers === "undefined") return null;
-    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const provider = _readProvider(deployment);
     const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
 
     const l = await launchpad.getLaunch(launchId);
@@ -912,7 +959,7 @@ async function fetchRecentTrades(launchId, maxResults = 50) {
   return _cachedRead("fetchRecentTrades:" + launchId + ":" + maxResults, async () => {
     const deployment = await loadDeployment();
     if (!deployment || typeof ethers === "undefined") return [];
-    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const provider = _readProvider(deployment);
     const launchpad = new ethers.Contract(deployment.launchpad, LAUNCHPAD_ABI, provider);
     const router = new ethers.Contract(deployment.launchRouter, ROUTER_ABI, provider);
     const fromBlock = deployment.deployedBlock || 0;
@@ -957,7 +1004,7 @@ async function fetchRewardsStats() {
   return _cachedRead("fetchRewardsStats", async () => {
     const deployment = await loadDeployment();
     if (!deployment || typeof ethers === "undefined") return null;
-    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const provider = _readProvider(deployment);
     const fromBlock = deployment.deployedBlock || 0;
 
     const launches = await fetchAllLaunches();
@@ -1034,7 +1081,7 @@ async function fetchProtocolStats() {
   return _cachedRead("fetchProtocolStats", async () => {
     const deployment = await loadDeployment();
     if (!deployment || typeof ethers === "undefined") return null;
-    const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+    const provider = _readProvider(deployment);
 
     const launches = await fetchAllLaunches();
     const markets = launches.length;
@@ -1198,7 +1245,7 @@ async function sellOnMarket(launchId, tokenAddress, tokenAmountIn) {
 async function fetchEarnedRewards(tokenAddress, account) {
   const deployment = await loadDeployment();
   if (!deployment || typeof ethers === "undefined" || !account) return 0n;
-  const provider = new ethers.JsonRpcProvider(deployment.rpcUrl);
+  const provider = _readProvider(deployment);
   const token = new ethers.Contract(tokenAddress, TOKEN_ABI, provider);
   return token.earned(account);
 }
@@ -1402,4 +1449,5 @@ window.Parcel = {
   fetchAllLaunches, fetchLaunchById, decodeMetadata, escapeHtml, resizeImageToDataUri, priceFromSqrtPriceX96, curveProgressPct,
   fetchMarketState, fetchRecentTrades, fetchMarketVolumeEth, buyOnMarket, buyOnMarketWithCoin, sellOnMarket,
   fetchEarnedRewards, claimMarketRewards, fetchRewardsStats, fetchProtocolStats, collectFeesOnMarket, executeBuyback,
+  mapWithConcurrency,
 };
