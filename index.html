@@ -50,9 +50,9 @@
         </p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="launch.html">Launch a coin</a>
-          <button type="button" class="btn btn-outline btn-ca" id="hero-ca" disabled>
+          <button type="button" class="btn btn-outline btn-ca" id="hero-ca" data-ca="0xc3fcf5bcbb2b747ab5b26cb1323b8566da38f3de" title="Click to copy">
             <img class="rh" src="assets/brand/robinhood.png" alt="">
-            $CASTLE CA (soon)
+            <span id="hero-ca-text">$CASTLE: 0xc3fcf5bc…38f3de</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="7" width="9" height="9" rx="2"/><path d="M13 7V5.5A1.5 1.5 0 0 0 11.5 4H5.5A1.5 1.5 0 0 0 4 5.5v6A1.5 1.5 0 0 0 5.5 13H7"/></svg>
           </button>
         </div>
@@ -158,7 +158,7 @@
   <div class="wrap">
     <span class="foot-copy">&copy; 2026 CASTLE. All rights reserved.</span>
     <div class="foot-links">
-      <span class="foot-row is-pending">$CASTLE contract address <b>soon</b></span>
+      <span class="foot-row" data-copy="0xc3fcf5bcbb2b747ab5b26cb1323b8566da38f3de">$CASTLE: <b>0xc3fcf5bc…38f3de</b></span>
     </div>
   </div>
 </footer>
@@ -359,6 +359,16 @@
 
   loadMarkets();
   loadProtocolStats();
+
+  const heroCaBtn = document.getElementById("hero-ca");
+  const heroCaText = document.getElementById("hero-ca-text");
+  const heroCaLabel = heroCaText.textContent;
+  heroCaBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(heroCaBtn.dataset.ca).then(() => {
+      heroCaText.textContent = "Copied!";
+      setTimeout(() => { heroCaText.textContent = heroCaLabel; }, 1200);
+    });
+  });
 </script>
 </body>
 </html>
