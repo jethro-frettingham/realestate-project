@@ -220,11 +220,23 @@
           Parcel.fetchMarketState(l.launchId),
           Parcel.fetchMarketVolumeEth(l.launchId),
         ]);
-        // FDV in USD only makes sense directly for ETH-quoted markets; a
-        // classed market's price is in its class coin's own units.
-        const fdvUsd = state.quoteAsset === ethers.ZeroAddress
-          ? state.quotePerToken * Number(ethers.formatEther(state.totalSupply)) * deployment.ethUsd
-          : null;
+        // A classed market's price (quotePerToken) is in its class coin's
+        // own units, not ETH — convert through that class's current rate
+        // (its own weiPerUnit, static or live tier) to get an ETH-, then
+        // USD-, equivalent, same conversion fetchProtocolStats/
+        // fetchRewardsStats already do for volume/rewards.
+        let fdvUsd = null;
+        if (state.quoteAsset === ethers.ZeroAddress) {
+          fdvUsd = state.quotePerToken * Number(ethers.formatEther(state.totalSupply)) * deployment.ethUsd;
+        } else if (state.propertyClass) {
+          try {
+            const rate = await Parcel.readPropertyCoin(state.propertyClass, null);
+            if (rate) {
+              const ethPerQuoteUnit = Number(ethers.formatEther(rate.weiPerUnit));
+              fdvUsd = state.quotePerToken * ethPerQuoteUnit * Number(ethers.formatEther(state.totalSupply)) * deployment.ethUsd;
+            }
+          } catch (_) { /* couldn't resolve this class's rate — leave FDV blank rather than fail the whole card */ }
+        }
         const pct = Parcel.curveProgressPct(state);
         const volumeEth = Number(ethers.formatEther(volumeWei)); // volumeWei is raw wei, convert before display
         return {
