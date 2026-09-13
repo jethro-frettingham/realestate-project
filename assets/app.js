@@ -76,7 +76,33 @@ const PEGPOOL_ABI = [
   "function coin() view returns (address)",
   "event Bought(address indexed trader, uint256 ethIn, uint256 coinOut)",
   "event Sold(address indexed trader, uint256 coinIn, uint256 ethOut)",
+  "error ZeroAmount()",
+  "error InsufficientReserves()",
+  "error Slippage()",
 ];
+
+/** PegPool's custom errors have no ABI-level message string, so without
+ *  this, a revert just surfaces to the user as raw ethers CALL_EXCEPTION
+ *  JSON (reason=null, revert=null) — technically correct, meaningless to
+ *  read. Decodes the revert data (present whether the ABI already let
+ *  ethers auto-populate `err.revert`, or not) into the plain-English
+ *  explanation this app actually wants to show. Returns null for anything
+ *  that isn't one of PegPool's own errors, so callers fall back to the
+ *  original error. */
+function _describePegPoolError(err) {
+  try {
+    const data = err?.data || err?.error?.data || err?.info?.error?.data || err?.revert?.data;
+    if (!data) return null;
+    const parsed = new ethers.Interface(PEGPOOL_ABI).parseError(data);
+    if (!parsed) return null;
+    if (parsed.name === "InsufficientReserves") {
+      return "Not enough ETH has been pulled into this class's pool yet to pay sellers. Try a smaller amount, or check back after more buying activity on this class.";
+    }
+    if (parsed.name === "Slippage") return "The price moved before this could confirm — try again.";
+    if (parsed.name === "ZeroAmount") return "Enter a non-zero amount.";
+  } catch (_) { /* not a PegPool error — let the caller fall back */ }
+  return null;
+}
 
 /* ---------------------------------------------------------------------- */
 /* Short-TTL read cache — this is a static site with no shared backend,   */
@@ -608,10 +634,14 @@ async function mintPropertyCoin(ticker, ethIn) {
   const signer = await provider.getSigner();
   if (venue.tier === "live") {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, signer);
-    const tx = await pool.buy(0n, { value: ethIn });
-    const receipt = await tx.wait();
-    _invalidateReadCache();
-    return { txHash: receipt.hash };
+    try {
+      const tx = await pool.buy(0n, { value: ethIn });
+      const receipt = await tx.wait();
+      _invalidateReadCache();
+      return { txHash: receipt.hash };
+    } catch (err) {
+      throw new Error(_describePegPoolError(err) || err.message || String(err));
+    }
   }
   const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, signer);
   const tx = await coin.mint(0n, { value: ethIn });
@@ -634,10 +664,14 @@ async function redeemPropertyCoin(ticker, coinIn) {
   const signer = await provider.getSigner();
   if (venue.tier === "live") {
     const pool = new ethers.Contract(venue.pegPoolAddress, PEGPOOL_ABI, signer);
-    const tx = await pool.sell(coinIn, 0n);
-    const receipt = await tx.wait();
-    _invalidateReadCache();
-    return { txHash: receipt.hash };
+    try {
+      const tx = await pool.sell(coinIn, 0n);
+      const receipt = await tx.wait();
+      _invalidateReadCache();
+      return { txHash: receipt.hash };
+    } catch (err) {
+      throw new Error(_describePegPoolError(err) || err.message || String(err));
+    }
   }
   const coin = new ethers.Contract(venue.coinAddress, PROPERTY_COIN_ABI, signer);
   const tx = await coin.redeem(coinIn, 0n);
