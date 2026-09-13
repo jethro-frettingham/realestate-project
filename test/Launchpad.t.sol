@@ -16,6 +16,7 @@ import {LaunchRouter} from "../contracts/LaunchRouter.sol";
 import {Buyback} from "../contracts/Buyback.sol";
 import {ParcelToken} from "../contracts/ParcelToken.sol";
 import {PropertyClassCoin} from "../contracts/PropertyClassCoin.sol";
+import {PegPool} from "../contracts/PegPool.sol";
 import {HookMiner} from "../script/HookMiner.sol";
 
 /// @dev Deploys a REAL v4-core PoolManager (not a mock) so these tests
@@ -194,6 +195,47 @@ contract LaunchpadTest is Test {
         // "sellers can hold or redeem it themselves" behavior.
         assertEq(trader.balance, traderEthBefore);
         assertEq(IERC20(address(hous)).balanceOf(trader), houscOut);
+    }
+
+    /// @notice The live-tier equivalent of test_classedLaunch_tradesAgainstClassCoin:
+    ///         picking a PegPool-backed coin (House) as the quote asset
+    ///         instead of a fixed-rate PropertyClassCoin. Buying routes the
+    ///         trader's ETH through PegPool.buy() (a real swap against its
+    ///         single-sided ask, not a 1:1 mint) before swapping into the
+    ///         launch's own pool; selling is unchanged — the trader still
+    ///         just receives the class coin directly.
+    function test_liveTierLaunch_tradesAgainstPegPoolCoin() public {
+        PegPool pegPool = new PegPool(poolManager, deployer, "House", "HOUS");
+        pegPool.initialize(100 ether); // 1 HOUS costs 100 ETH — arbitrary for the test
+        address hous = address(pegPool.coin());
+
+        vm.prank(creator);
+        (uint256 launchId, address token) =
+            launchpad.createLaunch{value: 10 ether}("Nana's House", "NANAHOUS", hous, 200, "ipfs://x", 0);
+
+        Launchpad.Launch memory l = launchpad.getLaunch(launchId);
+        assertEq(l.quoteAsset, hous);
+        assertEq(l.propertyClass, "HOUS");
+        assertGt(IERC20(token).balanceOf(creator), 0);
+
+        vm.prank(trader);
+        uint256 bought = router.buy{value: 5 ether}(launchId, 0);
+        assertGt(bought, 0);
+
+        uint256 traderEthBefore = trader.balance;
+        vm.startPrank(trader);
+        IERC20(token).approve(address(router), bought);
+        uint256 housOut = router.sell(launchId, bought, 0);
+        vm.stopPrank();
+
+        assertGt(housOut, 0);
+        assertEq(trader.balance, traderEthBefore);
+        assertEq(IERC20(hous).balanceOf(trader), housOut);
+
+        // collectFees() must also work through the live-tier path: harvest()
+        // then sell() to turn the buyback cut into ETH, same as a static
+        // coin's redeem() but against PegPool's variable-rate ask instead.
+        launchpad.collectFees(launchId);
     }
 
     function _poolId(Launchpad.Launch memory l) internal pure returns (PoolId) {

@@ -7,7 +7,7 @@
 <meta name="description" content="Launch a coin tethered to a property class on Robinhood Chain.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23C4FF9E'/%3E%3Cstop offset='1' stop-color='%237FD84E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cpath fill='%230B140A' d='M6.4 23.4H25.6V9.3H21V14.1H18.3V9.3H13.7V14.1H11V9.3H6.4Z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
-<link rel="stylesheet" href="assets/brand.css?v=L205435">
+<link rel="stylesheet" href="assets/brand.css?v=L205436">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
 </head>
@@ -181,27 +181,6 @@
   async function refreshMode() {
     deployment = await Parcel.loadDeployment();
     const disclosure = document.getElementById("mode-disclosure");
-
-    // A launch's quote asset must implement PropertyClassCoin's fixed-rate
-    // mint/redeem interface — a live-tier class's coin is minted/burned
-    // exclusively by its PegPool and doesn't support that, so it can't be
-    // picked as a launch's pairing (it's still tradeable on its own via
-    // classes.html). Disable those options once we know which is which.
-    if (deployment && deployment.pegPools) {
-      picker.querySelectorAll(".class-opt[data-ticker]").forEach((btn) => {
-        const t = btn.dataset.ticker;
-        if (t && deployment.pegPools[t] && deployment.pegPools[t] !== ethers.ZeroAddress) {
-          btn.disabled = true;
-          btn.title = "Live-priced classes trade on their own peg pool and can't be a launch's pairing yet.";
-          if (btn.getAttribute("aria-pressed") === "true") {
-            btn.setAttribute("aria-pressed", "false");
-            picker.querySelector('.class-opt[data-ticker=""]').setAttribute("aria-pressed", "true");
-            selectedClass = null;
-            updateOverview();
-          }
-        }
-      });
-    }
 
     if (deployment) {
       const faucetLine = deployment.faucet

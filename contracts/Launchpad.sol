@@ -15,9 +15,19 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {ParcelToken} from "./ParcelToken.sol";
 import {PropertyClassCoin} from "./PropertyClassCoin.sol";
+import {PegPool} from "./PegPool.sol";
 import {FeeHook} from "./FeeHook.sol";
+import {ClassAsset} from "./libraries/ClassAsset.sol";
 import {LaunchMath} from "./libraries/LaunchMath.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
+
+/// @dev Both PropertyClassCoin (static tier) and LiveClassCoin (live tier)
+///      expose an identically-shaped `classTicker()` getter — this lets a
+///      launch's propertyClass label be read without caring which tier the
+///      picked quote asset is.
+interface IHasClassTicker {
+    function classTicker() external view returns (string memory);
+}
 
 /// @title Launchpad
 /// @notice Singleton launchpad, mirroring CME's own description of its
@@ -151,7 +161,8 @@ contract Launchpad is IUnlockCallback {
     }
 
     /// @param quoteAsset_ address(0) for a plain-ETH market, or a
-    ///        `PropertyClassCoin` address to pick a property class.
+    ///        `PropertyClassCoin` (static tier) or `LiveClassCoin` (live
+    ///        tier) address to pick a property class.
     function createLaunch(
         string calldata name_,
         string calldata symbol_,
@@ -166,7 +177,7 @@ contract Launchpad is IUnlockCallback {
         ParcelToken token = new ParcelToken(name_, symbol_, address(this), quoteAsset_, address(poolManager));
         tokenAddr = address(token);
 
-        string memory propertyClass_ = quoteAsset_ == address(0) ? "" : PropertyClassCoin(quoteAsset_).classTicker();
+        string memory propertyClass_ = quoteAsset_ == address(0) ? "" : IHasClassTicker(quoteAsset_).classTicker();
 
         bool tokenIsCurrency1 = quoteAsset_ < tokenAddr;
         PoolKey memory key = PoolKey({
@@ -299,9 +310,7 @@ contract Launchpad is IUnlockCallback {
         uint256 actualQuoteIn = 0;
         uint256 mintedQuote = 0;
         if (firstBuyIn > 0) {
-            mintedQuote = l.quoteAsset == address(0)
-                ? firstBuyIn
-                : PropertyClassCoin(l.quoteAsset).mint{value: firstBuyIn}(0);
+            mintedQuote = _acquireQuoteAsset(l.quoteAsset, firstBuyIn, buyer);
 
             bool zeroForOne = t1;
             BalanceDelta swapDelta = poolManager.swap(
@@ -433,14 +442,37 @@ contract Launchpad is IUnlockCallback {
             if (!IERC20(quoteAddr).approve(l.token, holderCut)) revert TransferFailed();
             ParcelToken(payable(l.token)).notifyRewardAmount(holderCut);
 
-            // Class coins are fully collateralized 1:1 at their fixed rate,
-            // so redeeming is always safe — this is how the buyback cut of
-            // a classed market's fees becomes ETH, matching CME's own "the
-            // token share is sold for the coin" treatment but for the
-            // quote-asset leg instead.
-            uint256 ethForBuyback = PropertyClassCoin(quoteAddr).redeem(buybackCut, 0);
-            (bool sentBuyback,) = buyback.call{value: ethForBuyback}("");
-            if (!sentBuyback) revert TransferFailed();
+            uint256 ethForBuyback;
+            address pegPool = ClassAsset.pegPoolOf(quoteAddr);
+            if (pegPool != address(0)) {
+                // Live-tier: PegPool.sell() only pays out of ethReserves
+                // (ETH already harvested from the ask, via a separate
+                // permissionless harvest() call by anyone — not callable
+                // from here, since it opens its own poolManager.unlock()
+                // and this whole function already runs inside this
+                // contract's own unlock callback; v4's singleton only
+                // allows one unlock context active at a time) and reverts
+                // rather than partial-filling if that's short. If it's
+                // short (e.g. right after this class's launch, before
+                // anyone has called harvest() yet), leave this round's
+                // buyback cut as the class coin itself on `buyback` rather
+                // than blocking the holder/protocol cuts above over it —
+                // a future collectFees() call, once harvest() has run,
+                // redeems normally.
+                try PegPool(payable(pegPool)).sell(buybackCut, 0) returns (uint256 ethOut) {
+                    ethForBuyback = ethOut;
+                } catch {
+                    if (!IERC20(quoteAddr).transfer(buyback, buybackCut)) revert TransferFailed();
+                }
+            } else {
+                // Static-tier class coins are fully collateralized 1:1 at
+                // their fixed rate, so redeeming is always safe.
+                ethForBuyback = PropertyClassCoin(quoteAddr).redeem(buybackCut, 0);
+            }
+            if (ethForBuyback > 0) {
+                (bool sentBuyback,) = buyback.call{value: ethForBuyback}("");
+                if (!sentBuyback) revert TransferFailed();
+            }
 
             if (!IERC20(quoteAddr).transfer(protocolTreasury, protocolCut)) revert TransferFailed();
         }
@@ -448,9 +480,62 @@ contract Launchpad is IUnlockCallback {
         emit FeesCollected(launchId, holderCut, buybackCut, protocolCut);
     }
 
+    /// @dev Converts `ethIn` into `quoteAsset_` for a first buy: a fixed-
+    ///      rate mint for a static-tier coin, or a swap against the ask for
+    ///      a live-tier coin. The live-tier path can leave some ETH
+    ///      unspent (the ask might not hold enough inventory to absorb all
+    ///      of `ethIn` at the current tick), forwarded on to `buyer` rather
+    ///      than getting stranded here.
+    ///
+    ///      This swaps directly against the PegPool's own pool key instead
+    ///      of calling its public `buy()` — this whole function only ever
+    ///      runs from inside `_seedAndBuy`, itself only reachable from
+    ///      inside THIS contract's own `poolManager.unlock()` callback.
+    ///      `PegPool.buy()` opens its own `unlock()`, and v4's singleton
+    ///      PoolManager only allows one unlock context active at a time —
+    ///      calling it here would revert `AlreadyUnlocked()`. A swap has no
+    ///      notion of an "owner" the way a liquidity position does, so
+    ///      executing it directly against PegPool's poolKey from within
+    ///      this contract's own callback behaves identically on-chain to
+    ///      PegPool doing it itself: the resulting ETH still lands in
+    ///      PegPool's own ask position, exactly as pull-able by a later
+    ///      `harvest()` as if PegPool had triggered the swap.
+    function _acquireQuoteAsset(address quoteAsset_, uint256 ethIn, address buyer) internal returns (uint256) {
+        if (quoteAsset_ == address(0)) return ethIn;
+        address pegPoolAddr = ClassAsset.pegPoolOf(quoteAsset_);
+        if (pegPoolAddr == address(0)) return PropertyClassCoin(quoteAsset_).mint{value: ethIn}(0);
+
+        PegPool pegPool = PegPool(payable(pegPoolAddr));
+        // A public struct-typed getter returns its fields as separate
+        // values, not the struct itself — rebuild it from those.
+        (Currency c0, Currency c1, uint24 fee, int24 tickSpacing, IHooks hooks) = pegPool.poolKey();
+        PoolKey memory pegKey = PoolKey({currency0: c0, currency1: c1, fee: fee, tickSpacing: tickSpacing, hooks: hooks});
+        BalanceDelta delta = poolManager.swap(
+            pegKey,
+            IPoolManager.SwapParams({
+                zeroForOne: true, // PegPool's poolKey is always currency0 = ETH, currency1 = coin
+                amountSpecified: -int256(ethIn),
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(pegPool.askLowerTick()) + 1
+            }),
+            ""
+        );
+        uint256 actualEthIn = uint256(uint128(-delta.amount0()));
+        uint256 coinOut = uint256(uint128(delta.amount1()));
+
+        poolManager.settle{value: actualEthIn}();
+        poolManager.take(pegKey.currency1, address(this), coinOut);
+
+        if (actualEthIn < ethIn) {
+            (bool sent,) = buyer.call{value: ethIn - actualEthIn}("");
+            if (!sent) revert TransferFailed();
+        }
+        return coinOut;
+    }
+
     function _capInQuoteUnits(address quoteAsset_, uint256 capWei) internal view returns (uint256) {
         if (quoteAsset_ == address(0)) return capWei;
-        uint256 weiPerUnit = PropertyClassCoin(quoteAsset_).weiPerUnit();
+        address pegPool = ClassAsset.pegPoolOf(quoteAsset_);
+        uint256 weiPerUnit = pegPool != address(0) ? PegPool(payable(pegPool)).weiPerUnit() : PropertyClassCoin(quoteAsset_).weiPerUnit();
         return capWei * 1 ether / weiPerUnit;
     }
 

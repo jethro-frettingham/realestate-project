@@ -11,6 +11,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {Launchpad} from "./Launchpad.sol";
 import {PropertyClassCoin} from "./PropertyClassCoin.sol";
+import {PegPool} from "./PegPool.sol";
+import {ClassAsset} from "./libraries/ClassAsset.sol";
 
 /// @title LaunchRouter
 /// @notice The trading entry point for a market after it's created —
@@ -44,14 +46,15 @@ contract LaunchRouter is IUnlockCallback {
     }
 
     /// @notice Buy `launchId`'s token with ETH. If the market picked a
-    ///         property class, the ETH is minted into that class coin
-    ///         first, then swapped — the trader never touches the coin.
+    ///         property class, the ETH is converted into that class coin
+    ///         first (a fixed-rate mint for a static-tier coin, a swap
+    ///         against the ask for a live-tier one), then swapped — the
+    ///         trader never touches the coin.
     function buy(uint256 launchId, uint256 minTokensOut) external payable returns (uint256 tokensOut) {
         if (msg.value == 0) revert ZeroAmount();
         Launchpad.Launch memory l = launchpad.getLaunch(launchId);
 
-        uint256 amountIn =
-            l.quoteAsset == address(0) ? msg.value : PropertyClassCoin(l.quoteAsset).mint{value: msg.value}(0);
+        uint256 amountIn = _acquireQuoteAsset(l.quoteAsset, msg.value);
 
         (uint256 actualQuoteIn, uint256 tokensOut_) = abi.decode(
             poolManager.unlock(abi.encode(true, l.poolKey, l.tokenIsCurrency1, l.token, l.quoteAsset, amountIn, msg.sender)),
@@ -162,6 +165,28 @@ contract LaunchRouter is IUnlockCallback {
 
         Currency quoteCurrency = t1 ? key.currency0 : key.currency1;
         poolManager.take(quoteCurrency, trader, quoteOut);
+    }
+
+    /// @dev Converts `ethIn` into `quoteAsset_`: a fixed-rate mint for a
+    ///      static-tier coin, or a swap against the ask for a live-tier
+    ///      one. The live-tier path can leave some ETH unspent (the ask
+    ///      might not hold enough inventory to absorb all of `ethIn` at
+    ///      the current tick) — PegPool.buy() refunds that straight back
+    ///      to whoever calls it, which is this contract, so it's forwarded
+    ///      on to the trader here rather than getting stranded.
+    function _acquireQuoteAsset(address quoteAsset_, uint256 ethIn) internal returns (uint256) {
+        if (quoteAsset_ == address(0)) return ethIn;
+        address pegPool = ClassAsset.pegPoolOf(quoteAsset_);
+        if (pegPool == address(0)) return PropertyClassCoin(quoteAsset_).mint{value: ethIn}(0);
+
+        uint256 balBefore = address(this).balance - ethIn;
+        uint256 coinOut = PegPool(payable(pegPool)).buy{value: ethIn}(0);
+        uint256 refund = address(this).balance - balBefore;
+        if (refund > 0) {
+            (bool sent,) = msg.sender.call{value: refund}("");
+            if (!sent) revert TransferFailed();
+        }
+        return coinOut;
     }
 
     // Accepts refunded ETH mid-callback (e.g. leftover native quote) before forwarding it on.
